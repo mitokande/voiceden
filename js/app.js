@@ -362,6 +362,7 @@
 
   function applyBoot(b) {
     S.me = b.me;
+    $('railAdmin').hidden = !b.admin;      // the server decides; the page itself checks again
     // merged, not replaced: someone who left still has messages on screen
     for (const u of b.users) S.users.set(u.id, u);
     const oldChans = S.chans;
@@ -643,6 +644,7 @@
   let membersKey = '';
   function renderMembers() {
     const s = S.servers.get(S.sid);
+    memberPanel.hidden = !s;                // no den, nobody to list
     if (!s) { memberPanel.innerHTML = ''; membersKey = ''; return; }
     const weight = r => (r === 'owner' ? 0 : r === 'admin' ? 1 : 2);
     const sorted = s.members.slice().sort((a, b) => weight(a.role) - weight(b.role) || nameOf(a.id).localeCompare(nameOf(b.id), 'tr'));

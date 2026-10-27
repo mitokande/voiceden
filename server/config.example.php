@@ -8,4 +8,5 @@ return [
     ],
     'klipy_key' => '',
     'klipy_locale' => 'tr_TR',
+    'admins' => [],
 ];

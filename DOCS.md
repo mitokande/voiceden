@@ -20,6 +20,8 @@ The old account-free single-file room still lives at `classic.html`; any
 | `api.php` | JSON API, `api.php?a=<action>` |
 | `server/lib.php` | DB, sessions, permissions, wire formats |
 | `server/gifs.php` | GIF search through KLIPY (`gifs` endpoint, `store_gif` for sending) |
+| `server/admin.php` | admin dashboard data (`GET admin`, `admin&full=1`) |
+| `admin.html`, `admin.css`, `js/admin.js` | admin dashboard page (server + VoiceDen statistics) |
 | `server/schema.sql` | idempotent schema (re-runnable) |
 | `server/config.php` | DB credentials and `klipy_key` — **gitignored**; copy `config.example.php` |
 | `data/files/` | uploaded attachments, random names, no extensions — **gitignored**, `.htaccess`-denied |
@@ -86,6 +88,32 @@ server**: `voice_join {ch, peer}` claims a seat and returns everyone there.
   only if deafen took it.
 - Screen share: separate PeerJS call tagged `metadata.kind: 'screen'`; sharing
   is also reported to the server so the sidebar shows a CANLI badge.
+
+## Admin dashboard
+
+`admin.html`, for the usernames listed in `server/config.php` → `'admins'`
+(currently `mithat`). Boot returns `admin: true` for them and the app shows a
+chart button at the bottom of the rail; everyone else gets 403 from the API
+and a "yöneticiler için" page.
+
+- `GET admin` = live figures, cheap enough for every 3 s: `/proc/stat` CPU
+  counters, load average, `/proc/meminfo`, the busiest real interface's byte
+  counters from `/proc/net/dev`, process count and the top 10 by CPU (`ps`).
+  CPU % and network speed are the difference between two polls, computed in
+  the browser — so sparklines start after the second poll and only cover
+  the time the page has been open.
+- `GET admin&full=1` (every 30 s) adds host info, disks, MariaDB global
+  status, httpdocs top-level folder sizes (`du`, cached 10 min in
+  `data/admin-sizes.json`) and the VoiceDen numbers: users / online / active,
+  dens, channels, messages, per-day messages and sign-ups for 14 days
+  (Istanbul dates), who is in voice now, dens table, latest sign-ups, storage
+  (attachments, GIFs, photos, DB size).
+- The web PHP (LiteSpeed, user `mithatck`) has no open_basedir and may
+  `shell_exec`, which is what makes `ps`/`du` possible. `ps` %CPU is the
+  lifetime average of each process; the table flags anything over 90 % that
+  has run for more than a day as "TAKILI OLABİLİR".
+- Charts are hand-drawn SVG: single accent hue, hairline grid, 4 px rounded
+  bar ends, tooltips on every bar/sparkline, a table view under each column chart.
 
 ## Profile photos and den icons
 

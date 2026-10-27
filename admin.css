@@ -1,0 +1,134 @@
+/* VoiceDen admin dashboard — rides on app.css tokens */
+:root{
+  --warn:#f3c969;
+  --warn-bg:rgba(243,201,105,.14);
+  --track:rgba(95,216,200,.14);      /* a lighter step of the accent: the meter's empty part */
+  --grid:rgba(255,255,255,.07);
+}
+body.adm-body{overflow:auto}
+.adm{max-width:1240px;margin:0 auto;padding:0 24px 64px;display:flex;flex-direction:column;gap:28px}
+.adm-head{
+  position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:14px;height:64px;
+  background:linear-gradient(var(--bg) 78%,transparent);margin:0 -24px;padding:0 24px;
+}
+.adm-head .brand{text-decoration:none;color:inherit}
+.adm-title{font:500 11px var(--mono);letter-spacing:.1em;color:var(--text-dim);text-transform:uppercase;padding-left:14px;border-left:1px solid var(--line-hard)}
+.adm-live{display:flex;align-items:center;gap:7px;font:400 11px var(--mono);color:var(--text-dim)}
+.adm-live .dot{width:7px;height:7px;border-radius:50%;background:var(--teal);animation:vd-pulse-sm 1.8s infinite}
+.adm-live.stale .dot{background:var(--text-faint);animation:none}
+a.btn{text-decoration:none;color:var(--text)}
+
+.adm-sec{display:flex;flex-direction:column;gap:14px}
+.sec-h{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.sec-h h2{font-size:24px;font-weight:600;letter-spacing:-.01em}
+.sec-sub{font:400 11.5px var(--mono);color:var(--text-dim)}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.tile{
+  border-radius:var(--r-card);background:var(--panel);border:1px solid var(--line);
+  padding:16px 18px;display:flex;flex-direction:column;gap:6px;min-width:0;position:relative;
+}
+.tile .t-label{font-size:12.5px;color:var(--text-dim)}
+.tile .t-value{font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.1}
+.tile .t-value small{font-size:14px;font-weight:500;color:var(--text-dim);margin-left:4px;letter-spacing:0}
+.tile .t-sub{font:400 11px var(--mono);color:var(--text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .t-delta{font:500 11px var(--mono);color:var(--teal)}
+.tile svg.spark{display:block;width:100%;height:38px;margin-top:4px;overflow:visible}
+
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.card{
+  border-radius:var(--r-card);background:var(--panel);border:1px solid var(--line);
+  padding:18px 20px;display:flex;flex-direction:column;gap:14px;min-width:0;
+}
+.card h3{font-size:14px;font-weight:600;display:flex;align-items:baseline;gap:10px}
+.h-sub{font:400 11px var(--mono);color:var(--text-faint);font-weight:400}
+.empty{font-size:13px;color:var(--text-faint);padding:6px 0}
+
+/* meters: fill = severity, track = a lighter step of the same hue */
+.meter-row{display:flex;flex-direction:column;gap:6px}
+.meter-row + .meter-row{margin-top:10px}
+.meter-top{display:flex;align-items:baseline;gap:8px;font-size:13px}
+.meter-top .m-name{font-weight:500}
+.meter-top .m-note{font:400 11px var(--mono);color:var(--text-faint)}
+.meter-top .m-val{margin-left:auto;font:500 12px var(--mono);color:var(--text-body);font-variant-numeric:tabular-nums}
+.bar{height:8px;border-radius:4px;background:var(--track);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:4px;background:var(--teal);transition:width .4s ease}
+.bar.warn{background:var(--warn-bg)}
+.bar.warn i{background:var(--warn)}
+.bar.crit{background:var(--red-bg)}
+.bar.crit i{background:var(--red)}
+.sev{font:600 9.5px var(--mono);letter-spacing:.06em;padding:2px 6px;border-radius:4px}
+.sev.warn{color:var(--warn);background:var(--warn-bg)}
+.sev.crit{color:var(--red);background:var(--red-bg)}
+
+/* horizontal magnitude bars (folder sizes, storage) */
+.hbars{display:flex;flex-direction:column;gap:9px}
+.hb{display:grid;grid-template-columns:minmax(90px,170px) 1fr;align-items:center;gap:12px;font-size:13px}
+.hb .hb-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-body)}
+.hb .hb-name.file{color:var(--text-dim)}
+.hb .hb-track{display:flex;align-items:center;gap:8px;min-width:0}
+.hb .hb-bar{height:10px;border-radius:0 4px 4px 0;background:var(--teal);min-width:2px;flex:none}
+.hb.other .hb-bar{background:var(--text-faint)}
+.hb .hb-val{font:400 11px var(--mono);color:var(--text-dim);white-space:nowrap;font-variant-numeric:tabular-nums}
+.hb:hover .hb-bar{filter:brightness(1.15)}
+
+/* column chart */
+.cols{position:relative}
+.cols svg{display:block;width:100%;height:180px;overflow:visible}
+.cols .axis text{font:400 10px var(--mono);fill:var(--text-faint)}
+.cols .lbl{font:500 10.5px var(--mono);fill:var(--text-body)}
+.cols rect.col{fill:var(--teal)}
+.cols rect.col.zero{fill:var(--line-hard)}
+.cols rect.hit{fill:transparent;cursor:default}
+.cols g.c:hover rect.col,.cols g.c:focus rect.col{filter:brightness(1.18)}
+.cols g.c:focus{outline:none}
+details.tview summary{font:400 11px var(--mono);color:var(--text-faint);cursor:pointer;width:max-content}
+details.tview summary:hover{color:var(--text-dim)}
+details.tview table{margin-top:8px}
+
+/* tables */
+.tbl-wrap{overflow-x:auto;margin:0 -4px}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{font:500 10px var(--mono);letter-spacing:.08em;color:var(--text-faint);text-transform:uppercase;text-align:left;padding:0 8px 8px;white-space:nowrap}
+.tbl td{padding:8px;border-top:1px solid var(--line-soft);white-space:nowrap;color:var(--text-body)}
+.tbl td.num,.tbl th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12px}
+.tbl td.mono{font-family:var(--mono);font-size:12px}
+.tbl td.dim{color:var(--text-dim)}
+.tbl tr.hot td{background:rgba(255,107,107,.05)}
+.tbl .cmd{max-width:280px;overflow:hidden;text-overflow:ellipsis}
+
+dl.kv{display:grid;grid-template-columns:auto 1fr;gap:8px 18px;font-size:13px;margin:0}
+dl.kv dt{color:var(--text-dim)}
+dl.kv dd{margin:0;text-align:right;font:500 12px var(--mono);font-variant-numeric:tabular-nums;color:var(--text-body)}
+
+.vrow{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:13px}
+.vrow + .vrow{border-top:1px solid var(--line-soft)}
+.vrow .where{margin-left:auto;font:400 11px var(--mono);color:var(--text-dim)}
+.vrow .flags{font:500 10px var(--mono);color:var(--text-faint)}
+
+/* one tooltip for every chart: value leads, label follows */
+.tip{
+  position:fixed;z-index:200;pointer-events:none;padding:8px 10px;border-radius:var(--r-sm);
+  background:var(--input);border:1px solid var(--line-hard);box-shadow:var(--shadow);
+  display:flex;flex-direction:column;gap:2px;min-width:90px;
+}
+.tip b{font:600 13px var(--sans);color:var(--text)}
+.tip span{font:400 10.5px var(--mono);color:var(--text-dim)}
+
+.adm-deny{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center}
+.adm-deny h1{font-size:28px;font-weight:600}
+.adm-deny p{color:var(--text-dim)}
+
+@media (max-width:900px){
+  .grid2{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:560px){
+  .adm{padding:0 14px 48px}
+  .adm-head{margin:0 -14px;padding:0 14px;gap:10px}
+  .adm-head .brand span,.adm-head .wide-only,#liveTxt{display:none}
+  .adm-title{border-left:0;padding-left:0}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tile{padding:14px}
+  .tile .t-value{font-size:22px}
+  .hb{grid-template-columns:minmax(70px,110px) 1fr}
+}

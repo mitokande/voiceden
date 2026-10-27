@@ -13,6 +13,7 @@
 declare(strict_types=1);
 require __DIR__ . '/server/lib.php';
 require __DIR__ . '/server/gifs.php';
+require __DIR__ . '/server/admin.php';
 
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
@@ -23,7 +24,7 @@ set_exception_handler(function (Throwable $e) {
 });
 
 const ROUTES = [
-    'GET'  => ['boot', 'messages', 'file', 'invite', 'gifs', 'img'],
+    'GET'  => ['boot', 'messages', 'file', 'invite', 'gifs', 'img', 'admin'],
     'POST' => ['register', 'login', 'logout', 'profile', 'password', 'poll',
                'server_create', 'server_update', 'server_delete', 'server_leave', 'invite_reset', 'invite_accept',
                'channel_create', 'channel_update', 'channel_delete', 'member_kick', 'member_role',
@@ -166,6 +167,7 @@ function api_boot(): void {
     $users[$uid] = pub_user($u);
     out([
         'me'      => pub_user($u),
+        'admin'   => is_admin($u),
         'servers' => array_values($byId),
         'users'   => array_values($users),
         'voice'   => voice_states_for($sids),

@@ -188,6 +188,8 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
   background:var(--panel);color:var(--teal);font-size:24px;font-weight:300;transition:border-radius .18s,background .15s,color .15s;
 }
 .rail-add:hover{border-radius:15px;background:var(--teal);color:var(--teal-ink)}
+.rail-admin{color:var(--text-dim);text-decoration:none;margin-top:auto}
+.rail-admin svg.i{width:20px;height:20px}
 
 /* --- channel sidebar --- */
 .side{

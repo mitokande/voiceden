@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Yönetim · VoiceDen</title>
+<meta name="theme-color" content="#131210">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%235fd8c8'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css?v=6">
+<link rel="stylesheet" href="admin.css?v=3">
+</head>
+<body class="adm-body">
+<div id="boot"><div class="spin"></div></div>
+
+<div class="adm-deny" id="deny" hidden>
+  <div class="brand"><div class="mark"></div><span>voiceden</span></div>
+  <h1>Bu sayfa yöneticiler için.</h1>
+  <p>Hesabın yönetim paneline erişemiyor.</p>
+  <a class="btn" href="./">Uygulamaya dön</a>
+</div>
+
+<main class="adm" id="adm" hidden>
+  <header class="adm-head">
+    <a class="brand" href="./" title="Uygulamaya dön"><div class="mark"></div><span>voiceden</span></a>
+    <span class="adm-title">Yönetim</span>
+    <span class="adm-live" id="live"><span class="dot"></span><span id="liveTxt">canlı</span></span>
+    <span class="spacer"></span>
+    <a class="btn small" href="./">← <span class="wide-only">Uygulamaya dön</span></a>
+  </header>
+
+  <section class="adm-sec">
+    <div class="sec-h"><h2>Sunucu</h2><span class="sec-sub" id="hostLine"></span></div>
+    <div class="tiles" id="hostTiles"></div>
+    <div class="grid2">
+      <div class="card"><h3>Diskler</h3><div id="disks"></div></div>
+      <div class="card"><h3>MariaDB</h3><dl class="kv" id="db"></dl></div>
+    </div>
+    <div class="card">
+      <h3>En çok işlemci kullananlar <span class="h-sub" id="procCount"></span></h3>
+      <div class="tbl-wrap"><table class="tbl" id="procs"></table></div>
+    </div>
+    <div class="card">
+      <h3>httpdocs klasörleri <span class="h-sub" id="sitesSub"></span></h3>
+      <div id="sites"></div>
+    </div>
+  </section>
+
+  <section class="adm-sec">
+    <div class="sec-h"><h2>VoiceDen</h2><span class="sec-sub" id="vdLine"></span></div>
+    <div class="tiles" id="vdTiles"></div>
+    <div class="grid2">
+      <div class="card"><h3>Mesajlar <span class="h-sub">son 14 gün</span></h3><div id="chMsgs"></div></div>
+      <div class="card"><h3>Yeni hesaplar <span class="h-sub">son 14 gün</span></h3><div id="chUsers"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Şu an seste <span class="h-sub" id="voiceSub"></span></h3><div id="voiceNow"></div></div>
+      <div class="card"><h3>Depolama</h3><div id="storage"></div></div>
+    </div>
+    <div class="card"><h3>Denler</h3><div class="tbl-wrap"><table class="tbl" id="densT"></table></div></div>
+    <div class="card"><h3>Son kayıtlar</h3><div class="tbl-wrap"><table class="tbl" id="recentT"></table></div></div>
+  </section>
+</main>
+
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<script src="js/admin.js?v=1"></script>
+</body>
+</html>
