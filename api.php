@@ -23,11 +23,11 @@ set_exception_handler(function (Throwable $e) {
 });
 
 const ROUTES = [
-    'GET'  => ['boot', 'messages', 'file', 'invite', 'gifs'],
+    'GET'  => ['boot', 'messages', 'file', 'invite', 'gifs', 'img'],
     'POST' => ['register', 'login', 'logout', 'profile', 'password', 'poll',
                'server_create', 'server_update', 'server_delete', 'server_leave', 'invite_reset', 'invite_accept',
                'channel_create', 'channel_update', 'channel_delete', 'member_kick', 'member_role',
-               'send', 'edit', 'delete', 'read', 'voice_join', 'voice_leave'],
+               'send', 'edit', 'delete', 'read', 'voice_join', 'voice_leave', 'avatar', 'server_icon'],
 ];
 // sendBeacon (tab closing) cannot set headers; leaving voice is the one write
 // that may arrive without it — the worst a forged one does is drop a presence row
@@ -103,6 +103,19 @@ function api_profile(): void {
     out(['me' => pub_user(q1('SELECT * FROM users WHERE id = ?', [$u['id']]))]);
 }
 
+/** POST multipart image=… sets the profile photo; JSON {clear: 1} removes it */
+function api_avatar(): void {
+    $u = require_user();
+    $tk = 'img:' . $u['id'];
+    if (!throttle_ok($tk, 30, 3600)) fail('slow_down', 429);
+    throttle_hit($tk);
+    $key = empty(body()['clear']) ? store_square_image(uploaded_image()) : null;
+    q('UPDATE users SET avatar = ? WHERE id = ?', [$key, $u['id']]);
+    q('UPDATE servers s JOIN members m ON m.server_id = s.id SET s.rev = s.rev + 1 WHERE m.user_id = ?', [$u['id']]);
+    delete_image($u['avatar']);
+    out(['me' => pub_user(q1('SELECT * FROM users WHERE id = ?', [$u['id']]))]);
+}
+
 function api_password(): void {
     $u = require_user();
     $b = body();
@@ -123,14 +136,14 @@ function api_boot(): void {
     $u = require_user();
     touch_seen($u);
     $uid = (int) $u['id'];
-    $servers = q('SELECT s.id, s.name, s.owner_id, s.invite_code, s.rev, m.role FROM members m
+    $servers = q('SELECT s.id, s.name, s.owner_id, s.invite_code, s.icon, s.rev, m.role FROM members m
                   JOIN servers s ON s.id = m.server_id WHERE m.user_id = ? ORDER BY m.joined_at, s.id', [$uid])->fetchAll();
     $sids = array_map(fn($s) => (int) $s['id'], $servers);
     $byId = [];
     foreach ($servers as $s) {
         $byId[(int) $s['id']] = [
             'id' => (int) $s['id'], 'name' => $s['name'], 'owner' => (int) $s['owner_id'],
-            'invite' => $s['invite_code'], 'rev' => (int) $s['rev'], 'role' => $s['role'],
+            'invite' => $s['invite_code'], 'icon' => $s['icon'], 'rev' => (int) $s['rev'], 'role' => $s['role'],
             'channels' => [], 'members' => [],
         ];
     }
@@ -269,9 +282,11 @@ function api_server_delete(): void {
     if (require_member($sid, $u) !== 'owner') fail('forbidden', 403);
     $paths = q('SELECT a.path FROM attachments a JOIN messages m ON m.id = a.message_id WHERE m.server_id = ?', [$sid])
         ->fetchAll(PDO::FETCH_COLUMN);
+    $icon = qv('SELECT icon FROM servers WHERE id = ?', [$sid]);
     q('DELETE FROM voice_states WHERE server_id = ?', [$sid]);
     q('DELETE FROM servers WHERE id = ?', [$sid]);     // cascades to members, channels, messages
     delete_files($paths);
+    delete_image($icon);
     out(['ok' => true]);
 }
 
@@ -285,6 +300,38 @@ function api_server_leave(): void {
     out(['ok' => true]);
 }
 
+/** POST multipart id=…&image=… sets a den's icon; JSON {id, clear: 1} removes it */
+function api_server_icon(): void {
+    $u = require_user();
+    $sid = int_in(body(), 'id');
+    require_manager($sid, $u);
+    $tk = 'img:' . $u['id'];
+    if (!throttle_ok($tk, 30, 3600)) fail('slow_down', 429);
+    throttle_hit($tk);
+    $old = qv('SELECT icon FROM servers WHERE id = ?', [$sid]);
+    $key = empty(body()['clear']) ? store_square_image(uploaded_image()) : null;
+    q('UPDATE servers SET icon = ?, rev = rev + 1 WHERE id = ?', [$key, $sid]);
+    delete_image($old);
+    out(['icon' => $key]);
+}
+
+/**
+ * GET img&k=<key> — profile photos and den icons. The 128-bit random key is the
+ * capability (as on Discord's CDN), which lets the sign-in screen show an
+ * invite's icon before anyone is logged in.
+ */
+function api_img(): void {
+    $k = (string) ($_GET['k'] ?? '');
+    $path = IMG_DIR . '/' . $k . '.webp';
+    if (!preg_match('/^[a-f0-9]{32}$/', $k) || !is_file($path)) { http_response_code(404); exit; }
+    header('Content-Type: image/webp');
+    header('Cache-Control: public, max-age=31536000, immutable');   // a new picture gets a new key
+    header('Content-Security-Policy: default-src \'none\'; sandbox');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
+}
+
 function api_invite_reset(): void {
     $u = require_user();
     $sid = int_in(body(), 'id');
@@ -296,13 +343,13 @@ function api_invite_reset(): void {
 /** Public: what an invite leads to, so the sign-in screen can say so. */
 function api_invite(): void {
     $code = strtolower(preg_replace('/[^a-z0-9]/i', '', (string) ($_GET['code'] ?? '')) ?? '');
-    $s = $code ? q1('SELECT id, name FROM servers WHERE invite_code = ?', [$code]) : null;
+    $s = $code ? q1('SELECT id, name, icon FROM servers WHERE invite_code = ?', [$code]) : null;
     if (!$s) fail('no_invite', 404);
     $sid = (int) $s['id'];
     $u = current_user();
     out([
         'server' => [
-            'id' => $sid, 'name' => $s['name'],
+            'id' => $sid, 'name' => $s['name'], 'icon' => $s['icon'],
             'members' => (int) qv('SELECT COUNT(*) FROM members WHERE server_id = ?', [$sid]),
             'online'  => count(online_ids([$sid])),
         ],

@@ -23,6 +23,7 @@ The old account-free single-file room still lives at `classic.html`; any
 | `server/schema.sql` | idempotent schema (re-runnable) |
 | `server/config.php` | DB credentials and `klipy_key` — **gitignored**; copy `config.example.php` |
 | `data/files/` | uploaded attachments, random names, no extensions — **gitignored**, `.htaccess`-denied |
+| `data/avatars/` | profile photos and den icons, `<key>.webp` (256×256) — **gitignored** |
 | `og.php` | link-preview resolver (unchanged from classic; SSRF-hardened) |
 | `.htaccess` | raises PHP upload limits to 26M/27M (LiteSpeed honours `php_value`; `.user.ini` did not work) |
 
@@ -86,6 +87,26 @@ server**: `voice_join {ch, peer}` claims a seat and returns everyone there.
 - Screen share: separate PeerJS call tagged `metadata.kind: 'screen'`; sharing
   is also reported to the server so the sidebar shows a CANLI badge.
 
+## Profile photos and den icons
+
+`users.avatar` and `servers.icon` hold a 32-hex key; the picture is
+`data/avatars/<key>.webp`, served by `GET api.php?a=img&k=<key>` with a
+one-year immutable cache (a new picture gets a new key, the old file is deleted).
+The random key is the capability, as on Discord's CDN — that is what lets the
+sign-in screen show an invite's den icon before anyone is logged in.
+
+- Upload: `POST avatar` / `POST server_icon` (multipart `image`, plus `id` for a
+  den; managers only), or JSON `{clear: 1}` to remove. 30 picture changes per
+  user per hour.
+- The browser crops first (`cropImage()` in app.js: drag to place, slider or
+  wheel to zoom, round window) and sends a 512×512 image; the server still
+  re-encodes every upload with GD to a 256×256 centre-square WebP, which drops
+  metadata and rejects anything that is not really a picture (`bad_image`),
+  with a 40-megapixel ceiling against decompression bombs.
+- A photo change bumps the rev of every den the person is in, so everyone's
+  next poll refetches and redraws names/avatars; without a photo the tint +
+  initials are shown as before.
+
 ## GIFs (KLIPY)
 
 Tenor's API shut down on 2026-06-30, so GIF search uses KLIPY
@@ -140,12 +161,12 @@ Test sign-ups count against the register throttle (20 per IP per hour): if a run
 
 ## Roadmap (not built yet)
 
-0. ~~GIF search~~ — done (KLIPY), waiting for the user's API key.
+0. ~~GIF search~~ — done (KLIPY), key configured.
 1. **DMs + friends** — a "home" entry on the rail; DM = a server-less channel with two members.
 2. **@mentions + notifications** — mention parsing, red badge counts, desktop
    notifications / sound when the tab is hidden.
 3. **Replies and reactions** on messages.
-4. **Avatars** (image upload, resized server-side) and a short status line.
+4. ~~Avatars and den icons~~ — done. A short status line is still open.
 5. **Channel order / categories** (drag to reorder), finer roles (who may create channels, kick, delete messages).
 6. **Per-person volume** in voice, and a **TURN server** of our own (coturn on 443) for strict NATs.
 7. **Search** in a den's messages (MariaDB FULLTEXT).

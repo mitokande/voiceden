@@ -36,9 +36,16 @@
   const tintOf = uid => { const u = S.users.get(uid); return TINTS[u ? (u.tint % TINTS.length) : 1]; };
   const svTint = sid => TINTS[(sid * 5 + 3) % TINTS.length];
   const nameOf = uid => { const u = S.users.get(uid); return u ? u.name : 'Biri'; };
+  // profile photos and den icons live under a random key; without one, initials on the tint
+  const imgUrl = k => 'api.php?a=img&k=' + encodeURIComponent(k);
+  const avInner = uid => {
+    const u = S.users.get(uid);
+    return u && u.av ? `<img src="${imgUrl(u.av)}" alt="" loading="lazy">` : esc(initials(nameOf(uid)));
+  };
+  const svInner = s => (s.icon ? `<img src="${imgUrl(s.icon)}" alt="">` : esc(initials(s.name)));
   const avHtml = (uid, cls = '', pres) => {
     const t = tintOf(uid);
-    return `<span class="av ${cls}" style="--av-bg:${t.bg};--av-fg:${t.fg}">${esc(initials(nameOf(uid)))}` +
+    return `<span class="av ${cls}" style="--av-bg:${t.bg};--av-fg:${t.fg}">${avInner(uid)}` +
       (pres === undefined ? '' : `<span class="pres${pres ? ' on' : ''}"></span>`) + '</span>';
   };
 
@@ -83,6 +90,7 @@
     bad_password: 'Mevcut şifre yanlış.',
     too_many: 'Sınıra ulaştın.',
     upload_failed: 'Dosya yüklenemedi.',
+    bad_image: 'Bu dosya bir resim değil ya da okunamadı.',
     gifs_off: 'GIF araması henüz ayarlanmadı.',
     gifs_down: 'GIF servisine şu an ulaşılamıyor.',
     no_gif: 'Bu GIF artık bulunamadı.',
@@ -113,10 +121,10 @@
     return j;
   }
   // XHR, not fetch: fetch has no upload progress
-  function upload(fd, onProgress) {
+  function upload(fd, onProgress, action) {
     return new Promise((resolve, reject) => {
       const x = new XMLHttpRequest();
-      x.open('POST', 'api.php?a=send');
+      x.open('POST', 'api.php?a=' + (action || 'send'));
       x.setRequestHeader('X-VoiceDen', '1');
       x.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
       x.onload = () => {
@@ -274,7 +282,7 @@
         const r = await api('invite', { code: pendingInvite }, { get: true });
         const t = svTint(r.server.id);
         const ic = $('aiIcon');
-        ic.textContent = initials(r.server.name);
+        ic.innerHTML = svInner(r.server);
         ic.style.cssText = `--av-bg:${t.bg};--av-fg:${t.fg}`;
         $('aiName').textContent = r.server.name;
         $('aiMeta').textContent = r.server.members + ' üye · ' + r.server.online + ' çevrimiçi — katılmak için giriş yap ya da hesap aç';
@@ -380,10 +388,10 @@
   function reboot() {
     if (rebooting) return rebooting;
     rebooting = api('boot', null, { get: true }).then(b => {
-      const before = [...S.users.values()].map(u => u.id + ':' + u.name + ':' + u.tint).join('|');
+      const before = [...S.users.values()].map(u => u.id + ':' + u.name + ':' + u.tint + ':' + u.av).join('|');
       applyBoot(b);
       // a newcomer's messages may already be on screen under a placeholder name
-      const after = [...S.users.values()].map(u => u.id + ':' + u.name + ':' + u.tint).join('|');
+      const after = [...S.users.values()].map(u => u.id + ':' + u.name + ':' + u.tint + ':' + u.av).join('|');
       if (before !== after && S.cid && store(S.cid).loaded) {
         const stick = atBottom(), top = messagesEl.scrollTop;
         renderChannel();
@@ -488,7 +496,7 @@
       const s = S.servers.get(sid), t = svTint(sid);
       const live = VD.voice.server === sid;
       html += `<div class="rail-item${sid === S.sid ? ' active' : ''}${serverUnread(s) ? ' unread' : ''}">
-        <button class="sv" data-sid="${sid}" title="${esc(s.name)}" style="--av-bg:${t.bg};--av-fg:${t.fg}">${esc(initials(s.name))}</button>
+        <button class="sv" data-sid="${sid}" title="${esc(s.name)}" style="--av-bg:${t.bg};--av-fg:${t.fg}">${svInner(s)}</button>
         ${live ? '<span class="vdot" title="Bu dende sestesin"></span>' : ''}</div>`;
     }
     if (html !== railKey) { railList.innerHTML = html; railKey = html; }
@@ -554,7 +562,7 @@
     const t = tintOf(S.me.id);
     const av = $('meAv');
     av.style.cssText = `--av-bg:${t.bg};--av-fg:${t.fg}`;
-    av.innerHTML = esc(initials(S.me.name)) + '<span class="pres on"></span>';
+    av.innerHTML = avInner(S.me.id) + '<span class="pres on"></span>';
     $('meName').textContent = S.me.name;
     $('meUser').textContent = '@' + S.me.username;
     const mute = $('meMute'), deaf = $('meDeaf');
@@ -1405,6 +1413,7 @@
       api, toast, requestPoll, esc, initials,
       userName: uid => (S.users.get(uid) || {}).name,
       tintOf: uid => tintOf(uid),
+      avatarHtml: uid => avInner(uid),
       meId: () => S.me.id,
       prettyInvite: sid => prettyUrl(inviteUrl(sid)),
       copyInvite,
@@ -1648,7 +1657,14 @@
       return `<div class="mrow" style="--who:${tintOf(x.id).fg}">${avHtml(x.id)}<span class="nm">${esc(u.name || '')} <span class="note">@${esc(u.username || '')}</span></span>
         ${x.role !== 'member' ? `<span class="role ${x.role}">${x.role === 'owner' ? 'SAHİP' : 'YÖNETİCİ'}</span>` : ''}${acts.join('')}</div>`;
     }).join('');
+    const st = svTint(sid);
     const m = openModal(`<h3>Den ayarları</h3>
+      <div class="settings-sec"><div class="pic-edit">
+        <span class="sv xl" style="--av-bg:${st.bg};--av-fg:${st.fg}">${svInner(s)}</span>
+        <div class="pic-edit-b"><div><button class="btn small" id="ssPic">Simge yükle</button>
+          ${s.icon ? '<button class="linkish warn" id="ssPicDel">Kaldır</button>' : ''}</div>
+          <div class="note">Rayda ve davetlerde görünür. Kare kırpılır.</div></div>
+        <input type="file" id="ssFile" accept="image/*" hidden></div></div>
       <div class="settings-sec"><div class="field"><label>Den adı</label>
         <div class="copyrow"><div class="in"><input id="ssName" maxlength="48" value="${esc(s.name)}"></div><button class="btn small primary" id="ssSave">Kaydet</button></div></div>
         <div class="err" id="ssErr"></div></div>
@@ -1660,6 +1676,25 @@
         <div class="note">Bütün kanallar, mesajlar ve dosyalar kalıcı olarak silinir.</div></div>` : ''}
       <div class="acts"><button class="btn" data-close>Kapat</button></div>`, { wide: true });
     const refresh = async () => { await reboot(); if (S.servers.get(sid)) openServerSettings(sid); else closeModal(); };
+    m.querySelector('#ssPic').addEventListener('click', () => m.querySelector('#ssFile').click());
+    m.querySelector('#ssFile').addEventListener('change', async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const blob = await cropImage(file, s.name + ' simgesi');
+      if (blob) {
+        const fd = new FormData();
+        fd.append('id', sid);
+        fd.append('image', blob, 'icon.webp');
+        try { await upload(fd, () => {}, 'server_icon'); toast('Den simgesi güncellendi', true); }
+        catch (ex) { toast(errText(ex)); }
+      }
+      refresh();
+    });
+    const picDel = m.querySelector('#ssPicDel');
+    if (picDel) picDel.addEventListener('click', async () => {
+      try { await api('server_icon', { id: sid, clear: 1 }); } catch (ex) { toast(errText(ex)); }
+      refresh();
+    });
     m.querySelector('#ssSave').addEventListener('click', async () => {
       try { await api('server_update', { id: sid, name: m.querySelector('#ssName').value.trim() }); await refresh(); toast('Kaydedildi', true); }
       catch (ex) { m.querySelector('#ssErr').textContent = errText(ex); }
@@ -1695,11 +1730,94 @@
     });
   }
 
+  /**
+   * Square cropper: drag to place, slider or wheel to zoom. Resolves a 512×512
+   * image blob (the server re-encodes it to 256×256 anyway), or null if cancelled.
+   */
+  function cropImage(file, title) {
+    return new Promise(resolve => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onerror = () => { URL.revokeObjectURL(url); toast('Bu dosya resim olarak açılamadı.'); resolve(null); };
+      img.onload = () => {
+        let done = false;
+        const finish = blob => { if (done) return; done = true; URL.revokeObjectURL(url); resolve(blob); };
+        const m = openModal(`<h3>${esc(title)}</h3><div class="sub">Sürükleyerek yerleştir, kaydırıcıyla yakınlaştır.</div>
+          <div class="crop" id="crop"><img alt="" draggable="false" src="${url}"><div class="crop-ring"></div></div>
+          <input type="range" class="crop-zoom" id="cropZoom" min="1" max="4" step="0.01" value="1" aria-label="Yakınlaştır">
+          <div class="acts"><button class="btn" data-close>Vazgeç</button><button class="btn primary" id="cropOk">Kaydet</button></div>`,
+          { onClose: () => finish(null) });
+        const box = m.querySelector('#crop'), pic = box.querySelector('img'), zoom = m.querySelector('#cropZoom');
+        const V = box.clientWidth, W = img.naturalWidth, Hh = img.naturalHeight;
+        const base = Math.max(V / W, V / Hh);           // "cover" at zoom 1
+        let s = 1, x = 0, y = 0;
+        const size = () => [W * base * s, Hh * base * s];
+        const clamp = () => {                            // the picture always fills the square
+          const [w, h] = size();
+          x = Math.min(0, Math.max(V - w, x));
+          y = Math.min(0, Math.max(V - h, y));
+        };
+        const paint = () => {
+          const [w, h] = size();
+          pic.style.width = w + 'px';
+          pic.style.height = h + 'px';
+          pic.style.transform = `translate(${x}px,${y}px)`;
+        };
+        { const [w, h] = size(); x = (V - w) / 2; y = (V - h) / 2; }
+        paint();
+        // zoom around a point, so what is under the cursor stays under it
+        const zoomTo = (ns, cx = V / 2, cy = V / 2) => {
+          ns = Math.max(1, Math.min(4, ns));
+          const k = ns / s;
+          x = cx - (cx - x) * k;
+          y = cy - (cy - y) * k;
+          s = ns;
+          clamp(); paint();
+          zoom.value = String(s);
+        };
+        zoom.addEventListener('input', () => zoomTo(+zoom.value));
+        box.addEventListener('wheel', e => {
+          e.preventDefault();
+          const r = box.getBoundingClientRect();
+          zoomTo(s * (e.deltaY < 0 ? 1.08 : 1 / 1.08), e.clientX - r.left, e.clientY - r.top);
+        }, { passive: false });
+        let drag = null;
+        box.addEventListener('pointerdown', e => { drag = { px: e.clientX, py: e.clientY, x, y }; box.setPointerCapture(e.pointerId); });
+        box.addEventListener('pointermove', e => {
+          if (!drag) return;
+          x = drag.x + e.clientX - drag.px;
+          y = drag.y + e.clientY - drag.py;
+          clamp(); paint();
+        });
+        const end = () => { drag = null; };
+        box.addEventListener('pointerup', end);
+        box.addEventListener('pointercancel', end);
+        m.querySelector('#cropOk').addEventListener('click', () => {
+          const OUT = 512, f = OUT / V;
+          const c = document.createElement('canvas');
+          c.width = c.height = OUT;
+          const ctx = c.getContext('2d');
+          ctx.imageSmoothingQuality = 'high';
+          const [w, h] = size();
+          ctx.drawImage(img, x * f, y * f, w * f, h * f);
+          c.toBlob(b => { finish(b); closeModal(); }, 'image/webp', 0.92);
+        });
+      };
+      img.src = url;
+    });
+  }
+
   function openSettings(tab) {
     let tint = S.me.tint;
     const m = openModal(`<h3>Ayarlar</h3>
       <div class="seg tabs" id="stTabs"><button data-tab="acc">Hesap</button><button data-tab="audio">Ses</button></div>
       <div id="tabAcc">
+        <div class="settings-sec"><div class="pic-edit">
+          <span class="av xl" style="--av-bg:${tintOf(S.me.id).bg};--av-fg:${tintOf(S.me.id).fg}">${avInner(S.me.id)}</span>
+          <div class="pic-edit-b"><div><button class="btn small" id="usPic">Fotoğraf yükle</button>
+            ${S.me.av ? '<button class="linkish warn" id="usPicDel">Kaldır</button>' : ''}</div>
+            <div class="note">JPG, PNG, WebP ya da GIF. Kare kırpılır; fotoğraf yokken baş harflerin renginle görünür.</div></div>
+          <input type="file" id="usFile" accept="image/*" hidden></div></div>
         <div class="settings-sec">
           <div class="field"><label>Görünen ad</label><div class="in"><input id="usName" maxlength="32" value="${esc(S.me.name)}"></div></div>
           <div class="field"><label>Renk</label><div class="tint-pick" id="usTint">${TINTS.map((t, i) =>
@@ -1739,6 +1857,32 @@
         if (S.cid) { renderChannel(); scrollBottom(); }
         toast('Profil kaydedildi', true);
       } catch (ex) { m.querySelector('#usErr').textContent = errText(ex); }
+    });
+    const setMe = async me => {
+      S.me = me;
+      S.users.set(me.id, me);
+      await reboot();
+      if (S.cid) { renderChannel(); scrollBottom(); }
+      VD.voice.render();
+      scheduleUi();
+    };
+    m.querySelector('#usPic').addEventListener('click', () => m.querySelector('#usFile').click());
+    m.querySelector('#usFile').addEventListener('change', async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const blob = await cropImage(file, 'Profil fotoğrafı');
+      if (blob) {
+        const fd = new FormData();
+        fd.append('image', blob, 'avatar.webp');
+        try { const r = await upload(fd, () => {}, 'avatar'); await setMe(r.me); toast('Profil fotoğrafın güncellendi', true); }
+        catch (ex) { toast(errText(ex)); }
+      }
+      openSettings('acc');
+    });
+    const picDel = m.querySelector('#usPicDel');
+    if (picDel) picDel.addEventListener('click', async () => {
+      try { const r = await api('avatar', { clear: 1 }); await setMe(r.me); } catch (ex) { toast(errText(ex)); }
+      openSettings('acc');
     });
     m.querySelector('#pwSave').addEventListener('click', async () => {
       const err = m.querySelector('#pwErr');

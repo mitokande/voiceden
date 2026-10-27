@@ -15,6 +15,8 @@ const MAX_BODY       = 2000;   // characters per message
 const MAX_FILES      = 10;     // per message
 const MAX_FILE_SIZE  = 25 * 1024 * 1024;
 const FILES_DIR      = __DIR__ . '/../data/files';
+const IMG_DIR        = __DIR__ . '/../data/avatars';
+const IMG_SIDE       = 256;
 const TINT_COUNT     = 8;
 
 /* ---------- output ---------- */
@@ -203,7 +205,8 @@ function bump_server(int $sid): void { q('UPDATE servers SET rev = rev + 1 WHERE
 /* ---------- wire formats ---------- */
 
 function pub_user(array $u): array {
-    return ['id' => (int) $u['id'], 'username' => $u['username'], 'name' => $u['display_name'], 'tint' => (int) $u['tint']];
+    return ['id' => (int) $u['id'], 'username' => $u['username'], 'name' => $u['display_name'], 'tint' => (int) $u['tint'],
+            'av' => $u['avatar'] ?? null];
 }
 
 const MSG_COLS = 'm.id, m.channel_id, m.server_id, m.user_id, m.body, m.deleted, m.rev,
@@ -275,6 +278,46 @@ function safe_filename(string $n): string {
     $n = ltrim($n, '.');
     return mb_substr($n, -100) ?: 'file';
 }
+/** the uploaded `image` field, checked; returns its temp path */
+function uploaded_image(): string {
+    $f = $_FILES['image'] ?? null;
+    if (!$f || is_array($f['tmp_name'])) fail('bad_image');
+    if ((int) $f['error'] !== UPLOAD_ERR_OK) fail(upload_error((int) $f['error']));
+    if ((int) $f['size'] > 8 * 1024 * 1024) fail('file_too_big');
+    if (!is_uploaded_file($f['tmp_name'])) fail('upload_failed');
+    return $f['tmp_name'];
+}
+
+/**
+ * Any picture in, a 256×256 WebP out (centre square). Re-encoding is the point:
+ * it drops metadata and whatever a crafted file carried besides pixels.
+ * Returns the random key the picture is served under.
+ */
+function store_square_image(string $tmp): string {
+    $info = @getimagesize($tmp);
+    $ok = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_GIF, IMAGETYPE_WEBP, IMAGETYPE_BMP, IMAGETYPE_AVIF];
+    if (!$info || !in_array($info[2], $ok, true)) fail('bad_image');
+    if ($info[0] < 1 || $info[1] < 1 || $info[0] * $info[1] > 40000000) fail('bad_image');   // decompression bombs
+    $src = @imagecreatefromstring((string) file_get_contents($tmp));
+    if (!$src) fail('bad_image');
+    $w = imagesx($src); $h = imagesy($src); $side = min($w, $h);
+    $dst = imagecreatetruecolor(IMG_SIDE, IMG_SIDE);
+    imagealphablending($dst, false);
+    imagesavealpha($dst, true);
+    imagefill($dst, 0, 0, imagecolorallocatealpha($dst, 0, 0, 0, 127));
+    imagecopyresampled($dst, $src, 0, 0, intdiv($w - $side, 2), intdiv($h - $side, 2), IMG_SIDE, IMG_SIDE, $side, $side);
+    $key = bin2hex(random_bytes(16));
+    if (!is_dir(IMG_DIR) && !mkdir(IMG_DIR, 0770, true) && !is_dir(IMG_DIR)) fail('upload_failed', 500);
+    $ok = imagewebp($dst, IMG_DIR . '/' . $key . '.webp', 86);
+    imagedestroy($src);
+    imagedestroy($dst);
+    if (!$ok) fail('upload_failed', 500);
+    return $key;
+}
+function delete_image(?string $key): void {
+    if ($key && preg_match('/^[a-f0-9]{32}$/', $key)) @unlink(IMG_DIR . '/' . $key . '.webp');
+}
+
 function delete_files(array $paths): void {
     foreach ($paths as $p) {
         if (is_string($p) && preg_match('#^[a-f0-9]{2}/[a-f0-9]{32}$#', $p)) @unlink(FILES_DIR . '/' . $p);

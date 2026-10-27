@@ -597,7 +597,7 @@
     div.innerHTML = `
       <div class="badge-speak">KONUŞUYOR</div>
       <div class="badge-mute">${isDeaf ? 'SESİ KAPALI' : 'SESSİZ'}</div>
-      <div class="avatar">${H.esc(H.initials(name))}</div>
+      <div class="avatar">${uid != null ? H.avatarHtml(uid) : H.esc(H.initials(name))}</div>
       <div class="m-bars"><i></i><i></i><i></i><i></i><i></i></div>
       <div class="member-info">
         <div class="member-name">${H.esc(name)}${self ? ' <span class="you">(sen)</span>' : ''}</div>

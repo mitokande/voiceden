@@ -158,3 +158,7 @@ CREATE TABLE IF NOT EXISTS gif_items (
   at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY k_at (at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- profile photos and den icons: key of a re-encoded 256×256 WebP in data/avatars
+ALTER TABLE users   ADD COLUMN IF NOT EXISTS avatar CHAR(32) NULL;
+ALTER TABLE servers ADD COLUMN IF NOT EXISTS icon   CHAR(32) NULL;
