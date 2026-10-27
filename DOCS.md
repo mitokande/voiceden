@@ -89,6 +89,32 @@ server**: `voice_join {ch, peer}` claims a seat and returns everyone there.
 - Screen share: separate PeerJS call tagged `metadata.kind: 'screen'`; sharing
   is also reported to the server so the sidebar shows a CANLI badge.
 
+## Message formatting
+
+Rendered client-side by `formatBody()` in app.js; the stored body is the raw
+text (so editing shows the markup as typed). Discord-style, plus Slack's
+single-tilde strike:
+
+`**bold**` · `*italic*` / `_italic_` · `***bold italic***` · `__underline__` ·
+`~~strike~~` / `~strike~` · `` `code` `` · ```` ```code block``` ```` (optional
+language word on the first line, no highlighting) · `> quote` lines ·
+`||spoiler||` (click or Enter to reveal) · `\*` for a literal mark.
+
+- Safety: code, backslash escapes and URLs are set aside as placeholders
+  (private-use characters, stripped from the input first), the rest is
+  escaped, and only then are the known tags added. User text can never
+  become markup; covered by XSS cases in the unit test below.
+- Emphasis never crosses a line, and single-character marks need a word edge
+  outside them (Unicode-aware), so `snake_case`, `2 * 3 * 4`, `~5 dakika` and
+  underscores inside URLs stay literal.
+- Link previews skip links inside code and spoilers (`previewText()`).
+- Composer: Ctrl/⌘+B / I / U / E wrap the selection in bold / italic /
+  underline / code, Ctrl/⌘+Shift+X in strike; pressing again unwraps. Enter
+  inside an unclosed ```` ``` ```` block adds a newline instead of sending.
+- Unit test: extract `esc`, `URL_RE`/`trimUrl` and `formatBody` from app.js
+  into a `new Function` in Node and compare output strings (see the
+  2026-10-28 session for the 25 cases used).
+
 ## Admin dashboard
 
 `admin.html`, for the usernames listed in `server/config.php` → `'admins'`

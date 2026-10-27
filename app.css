@@ -373,6 +373,26 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .m .body{color:var(--text-body);white-space:pre-wrap}
 .m .body a{color:var(--teal);text-decoration:none;border-bottom:1px solid rgba(95,216,200,.35)}
 .m .body a:hover{border-bottom-color:var(--teal)}
+/* message markup */
+.m .body strong{font-weight:600;color:var(--text)}
+.m .body s{color:var(--text-dim)}
+.md-code{
+  font:400 .86em var(--mono);padding:1px 5px;border-radius:5px;
+  background:var(--sunken);border:1px solid var(--line-hard);color:var(--text);
+}
+.md-pre{
+  margin:4px 0;padding:10px 12px;border-radius:var(--r-sm);max-width:min(100%,760px);
+  background:var(--sunken);border:1px solid var(--line-hard);overflow-x:auto;
+  font:400 12.5px/1.55 var(--mono);color:var(--text-body);white-space:pre;tab-size:4;
+}
+.md-pre code{font:inherit}
+.md-quote{margin:2px 0;padding:1px 0 1px 12px;border-left:3px solid var(--line-hard);color:var(--text-body)}
+.md-spoiler{border-radius:4px;padding:0 2px;transition:background .15s,color .15s}
+.md-spoiler:not(.shown){background:var(--bar-idle);color:transparent;cursor:pointer;user-select:none}
+.md-spoiler:not(.shown):hover{background:#5a554d}
+.md-spoiler:not(.shown) *{color:transparent!important;background:transparent!important;border-color:transparent!important}
+.md-spoiler:focus-visible{outline:2px solid var(--teal-line);outline-offset:1px}
+.md-spoiler.shown{background:var(--fill)}
 .m .body .edited{font:400 10px var(--mono);color:var(--text-faint);margin-left:4px;white-space:nowrap}
 .m.pending .body,.m.pending .attach{opacity:.55}
 .m.failed .body{color:var(--red)}

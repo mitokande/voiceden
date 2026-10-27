@@ -689,17 +689,48 @@
     }
     return u.replace(/[.,;:!?'"]+$/, '');
   }
-  function linkify(text) {
-    let out = '', last = 0, m;
+  /**
+   * Message markup, Discord-style plus Slack's single ~strike~:
+   *   **bold**  *italic* _italic_  __underline__  ~~strike~~ ~strike~
+   *   `code`  ```code block```  > quote  ||spoiler||  \* for a literal star
+   * Code, escapes and links are set aside first (so a URL's underscores or a
+   * snippet's stars stay literal), everything left is escaped, and only then
+   * are the few known tags added — the text itself can never become markup.
+   */
+  const PH_A = '', PH_B = '';
+  function formatBody(text) {
+    const keep = [];
+    const stash = html => PH_A + (keep.push(html) - 1) + PH_B;
+    text = String(text).replace(/[]/g, '');
+    text = text.replace(/\n?```(?:([\w+#-]{1,20})\n)?\n?([\s\S]*?)```\n?/g,
+      (_, lang, code) => stash(`<pre class="md-pre"><code>${esc(code.replace(/\n$/, ''))}</code></pre>`));
+    text = text.replace(/`([^`\n]+)`/g, (_, c) => stash(`<code class="md-code">${esc(c)}</code>`));
+    text = text.replace(/\\([*_~`|>\\])/g, (_, c) => stash(esc(c)));
     URL_RE.lastIndex = 0;
-    while ((m = URL_RE.exec(text)) !== null) {
-      const raw = trimUrl(m[0]);
-      out += esc(text.slice(last, m.index));
-      out += `<a href="${esc(raw)}" target="_blank" rel="noopener noreferrer nofollow">${esc(raw)}</a>`;
-      last = m.index + raw.length;
-    }
-    return out + esc(text.slice(last));
+    text = text.replace(URL_RE, m => {
+      const raw = trimUrl(m);
+      return stash(`<a href="${esc(raw)}" target="_blank" rel="noopener noreferrer nofollow">${esc(raw)}</a>`) + m.slice(raw.length);
+    });
+
+    let html = esc(text);
+    const wrap = (re, open, close) => { html = html.replace(re, (_, inner) => open + inner + close); };
+    // emphasis never spans lines, and single-character marks need a word edge
+    // on the outside, so snake_case, 2 * 3 * 4 and ~5 dakika stay as typed
+    wrap(/\|\|([^\n]+?)\|\|/g, '<span class="md-spoiler" tabindex="0" role="button" title="Göstermek için tıkla">', '</span>');
+    wrap(/\*\*\*([^\n]+?)\*\*\*/g, '<strong><em>', '</em></strong>');
+    wrap(/\*\*([^\n]+?)\*\*/g, '<strong>', '</strong>');
+    wrap(/__([^\n]+?)__/g, '<u>', '</u>');
+    wrap(/~~([^\n]+?)~~/g, '<s>', '</s>');
+    wrap(/(?<![\p{L}\p{N}*])\*(?![\s*])([^\n*]*?[^\s*])\*(?![\p{L}\p{N}*])/gu, '<em>', '</em>');
+    wrap(/(?<![\p{L}\p{N}_])_(?![\s_])([^\n_]*?[^\s_])_(?![\p{L}\p{N}_])/gu, '<em>', '</em>');
+    wrap(/(?<![\p{L}\p{N}~])~(?![\s~])([^\n~]*?[^\s~])~(?![\p{L}\p{N}~])/gu, '<s>', '</s>');
+    // runs of "> " lines become one quote; the newline around it is the block's own
+    html = html.replace(/(^|\n)((?:&gt; ?[^\n]*(?:\n|$))+)/g, (_, pre, block) =>
+      '<blockquote class="md-quote">' + block.replace(/(^|\n)&gt; ?/g, '$1').replace(/\n$/, '') + '</blockquote>');
+    return html.replace(/(\d+)/g, (_, i) => keep[+i]);
   }
+  // what a link preview may come from: not code, not a spoiler
+  const previewText = t => String(t).replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]+`/g, '').replace(/\|\|[^\n]+?\|\|/g, '');
   function firstLink(text) {
     URL_RE.lastIndex = 0;
     const m = URL_RE.exec(text);
@@ -829,14 +860,14 @@
     html += `<div class="m${head ? ' head' : ''}">
       <div class="gut">${head ? avHtml(m.uid, 'lg') : `<span class="tm">${hhmm(m.ts)}</span>`}</div>
       <div class="cnt">${head ? `<div class="meta"><span class="who" style="--who:${tintOf(m.uid).fg}">${esc(nameOf(m.uid))}</span><span class="when">${esc(whenLabel(m.ts))}</span></div>` : ''}
-      ${m.body ? `<div class="body">${linkify(m.body)}${m.ets ? '<span class="edited">(düzenlendi)</span>' : ''}</div>` : ''}</div>
+      ${m.body ? `<div class="body">${formatBody(m.body)}${m.ets ? '<span class="edited">(düzenlendi)</span>' : ''}</div>` : ''}</div>
       ${canDel ? `<div class="m-acts">${mine ? `<button data-act="edit" title="Düzenle" aria-label="Düzenle">${icon('edit')}</button>` : ''}
         <button class="warn" data-act="del" title="Sil (Shift: sormadan)" aria-label="Sil">${icon('trash')}</button></div>` : ''}
     </div>`;
     wrap.innerHTML = html;
     const cnt = wrap.querySelector('.cnt');
     if (m.att && m.att.length) cnt.appendChild(attachHtmlEls(m.att));
-    if (m.body) addPreview(cnt, m.body);
+    if (m.body) addPreview(cnt, previewText(m.body));
     return wrap;
   }
 
@@ -848,7 +879,7 @@
     wrap.innerHTML = `<div class="m${head ? ' head' : ''} pending${p.failed ? ' failed' : ''}">
       <div class="gut">${head ? avHtml(p.uid, 'lg') : `<span class="tm">${hhmm(p.ts)}</span>`}</div>
       <div class="cnt">${head ? `<div class="meta"><span class="who" style="--who:${tintOf(p.uid).fg}">${esc(nameOf(p.uid))}</span><span class="when">gönderiliyor…</span></div>` : ''}
-        ${p.body ? `<div class="body">${linkify(p.body)}</div>` : ''}
+        ${p.body ? `<div class="body">${formatBody(p.body)}</div>` : ''}
         ${p.files.length ? `<div class="attach">${p.files.map(f => `<div class="at-file"><span class="at-icon">📤</span><span class="at-meta"><span class="at-name">${esc(f.name)}</span><span class="at-size">${esc(fmtSize(f.size))}</span></span></div>`).join('')}
           ${p.failed ? '' : '<span class="at-bar"><i></i></span>'}</div>` : ''}
         ${p.gif ? `<div class="attach"><img class="at-gif" alt="" src="${esc(p.gif.thumb)}" style="width:${Math.min(p.gif.w || 240, 360, Math.round(300 * (p.gif.w || 4) / (p.gif.h || 3)))}px;aspect-ratio:${p.gif.w || 4} / ${p.gif.h || 3}"></div>` : ''}
@@ -1042,7 +1073,14 @@
   }
 
   // message hover actions
+  const revealSpoiler = sp => { sp.classList.add('shown'); sp.removeAttribute('role'); sp.removeAttribute('tabindex'); sp.removeAttribute('title'); };
+  messagesEl.addEventListener('keydown', e => {
+    const sp = e.target.closest && e.target.closest('.md-spoiler:not(.shown)');
+    if (sp && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); revealSpoiler(sp); }
+  });
   messagesEl.addEventListener('click', async e => {
+    const sp = e.target.closest('.md-spoiler:not(.shown)');
+    if (sp) { e.preventDefault(); revealSpoiler(sp); return; }
     if (e.target.closest('[data-reload]')) { const cid = S.cid; await loadLatest(cid); if (S.cid === cid) openChannel(cid); return; }
     const pend = e.target.closest('.mw.pending');
     if (pend) {
@@ -1088,6 +1126,7 @@
     ta.addEventListener('input', size);
     const cancel = () => rerenderMsg(store(m.ch).byId.get(m.id) || m);
     ta.addEventListener('keydown', async ev => {
+      if (formatKey(ev, ta)) return;
       if (ev.key === 'Escape') { ev.stopPropagation(); cancel(); chatInput.focus(); return; }
       if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) {
         ev.preventDefault();
@@ -1210,6 +1249,28 @@
     node.replaceWith(pendingEl(p, i > 0 ? st.pending[i - 1] : st.msgs[st.msgs.length - 1] || null));
   }
 
+  // Ctrl/⌘+B **bold**, +I *italic*, +U __underline__, +E `code`, +Shift+X ~~strike~~;
+  // pressed again on an already wrapped selection it unwraps
+  const FORMAT_KEYS = { b: '**', i: '*', u: '__', e: '`' };
+  function formatKey(e, ta) {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return false;
+    const k = e.key.toLowerCase();
+    const mark = e.shiftKey ? (k === 'x' ? '~~' : null) : FORMAT_KEYS[k];
+    if (!mark) return false;
+    e.preventDefault();
+    const a = ta.selectionStart, b = ta.selectionEnd, v = ta.value, n = mark.length;
+    if (a >= n && v.slice(a - n, a) === mark && v.slice(b, b + n) === mark) {
+      ta.setRangeText(v.slice(a, b), a - n, b + n, 'select');
+    } else {
+      ta.setRangeText(mark + v.slice(a, b) + mark, a, b, 'select');
+      ta.setSelectionRange(a + n, b + n);
+    }
+    ta.dispatchEvent(new Event('input'));
+    return true;
+  }
+  // an odd number of ``` before the caret means we are inside a code block
+  const inFence = ta => ((ta.value.slice(0, ta.selectionStart).match(/```/g) || []).length % 2 === 1);
+
   let lastTypingPing = 0;
   chatInput.addEventListener('input', () => {
     autosize();
@@ -1220,7 +1281,8 @@
     }
   });
   chatInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !touch) { e.preventDefault(); send(); return; }
+    if (formatKey(e, chatInput)) return;
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !touch && !inFence(chatInput)) { e.preventDefault(); send(); return; }
     // ↑ in an empty box edits your last message, as in most chat apps
     if (e.key === 'ArrowUp' && !chatInput.value) {
       const st = store(S.cid);
