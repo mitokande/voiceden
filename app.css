@@ -229,6 +229,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .ch:hover .edit,.ch.active .edit{opacity:1}
 .ch .edit:hover{color:var(--text);background:var(--fill)}
 .ch .cnt{font:400 10px var(--mono);color:var(--text-faint)}
+.ch .ment{margin-left:2px}
 .vusers{display:flex;flex-direction:column;gap:1px;padding:2px 0 6px 26px}
 .vu-row{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:7px;font-size:13px;color:var(--text-dim);min-width:0}
 .vu-row .av{width:22px;height:22px;font-size:9px;transition:box-shadow .12s}
@@ -393,6 +394,41 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .md-spoiler:not(.shown) *{color:transparent!important;background:transparent!important;border-color:transparent!important}
 .md-spoiler:focus-visible{outline:2px solid var(--teal-line);outline-offset:1px}
 .md-spoiler.shown{background:var(--fill)}
+/* @mentions: a chip in the text, and the whole message lit when it names you */
+.md-mention{border-radius:4px;padding:0 3px;background:var(--teal-dim);color:var(--teal);font-weight:500}
+.md-mention.me{background:rgba(243,201,105,.16);color:#f3c969}
+.m.mention{background:rgba(243,201,105,.06);box-shadow:inset 2px 0 0 #f3c969}
+.m.mention:hover{background:rgba(243,201,105,.09)}
+/* red count of unread mentions, on a channel and on the den's rail icon */
+.ment{
+  min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e5484d;color:#fff;
+  font:600 10.5px/18px var(--mono);text-align:center;flex:none;
+}
+.rail-item .ment{position:absolute;right:8px;top:-2px;border:3px solid var(--rail);height:22px;line-height:16px;min-width:22px}
+.rail-item.muted .sv{opacity:.55}
+.rail-item.muted:hover .sv,.rail-item.muted.active .sv{opacity:1}
+/* den menu: notification level */
+.menu-notif{display:flex;flex-direction:column;gap:6px;padding:6px 10px 4px;font-size:12px;color:var(--text-dim)}
+.menu-notif .seg button{font-size:11.5px;padding:5px 2px}
+/* settings → notifications */
+.notif-dev{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.notif-state{font:600 11px var(--mono);letter-spacing:.06em;color:var(--text-dim);padding:4px 8px;border-radius:6px;background:var(--fill)}
+.notif-state.on{color:var(--teal);background:var(--teal-dim)}
+.notif-den{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13.5px}
+.notif-den span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notif-den .seg{flex:none;width:260px}
+.notif-den .seg button{font-size:11.5px}
+/* @ autocomplete above the composer */
+.mpop{
+  position:absolute;left:20px;bottom:calc(100% + 2px);z-index:21;width:min(320px,calc(100% - 40px));
+  border-radius:var(--r-pop);background:var(--input);border:1px solid var(--line-hard);box-shadow:var(--shadow);
+  padding:5px;display:flex;flex-direction:column;gap:1px;animation:vd-in .1s ease-out;
+}
+.mp-row{display:flex;align-items:center;gap:9px;height:36px;padding:0 8px;border-radius:8px;text-align:left;font-size:13.5px}
+.mp-row .nm{color:var(--text);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mp-row .un{margin-left:auto;font:400 11px var(--mono);color:var(--text-faint);flex:none}
+.mp-row.on,.mp-row:hover{background:var(--fill-2)}
+#app.view-voice .mpop{left:14px}
 .m .body .edited{font:400 10px var(--mono);color:var(--text-faint);margin-left:4px;white-space:nowrap}
 .m.pending .body,.m.pending .attach{opacity:.55}
 .m.failed .body{color:var(--red)}
@@ -792,6 +828,9 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
   text-align:center;
 }
 .toast.ok{border-color:var(--teal-line)}
+.toast.click{cursor:pointer;text-align:left;max-width:min(420px,calc(100vw - 32px));line-height:1.45;color:var(--text-body)}
+.toast.click b{color:var(--text);font-weight:600}
+.toast.click:hover{border-color:var(--teal-line)}
 
 #lightbox{
   position:fixed;inset:0;background:rgba(10,9,8,.94);z-index:100;
@@ -836,6 +875,9 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
   .day,.new-line{margin-left:12px;margin-right:12px}
   .composer{padding:0 10px calc(10px + env(safe-area-inset-bottom))}
   .gifpick,#app.view-voice .gifpick{left:10px;width:calc(100% - 20px);height:min(420px,55vh)}
+  .mpop,#app.view-voice .mpop{left:10px;width:calc(100% - 20px)}
+  .notif-den{flex-direction:column;align-items:stretch;gap:6px}
+  .notif-den .seg{width:auto}
   .msgs-top{padding:20px 12px 10px}
   .cards{width:100%}
   .lcard{width:100%;max-width:420px}

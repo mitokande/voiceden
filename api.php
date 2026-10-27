@@ -14,6 +14,7 @@ declare(strict_types=1);
 require __DIR__ . '/server/lib.php';
 require __DIR__ . '/server/gifs.php';
 require __DIR__ . '/server/admin.php';
+require __DIR__ . '/server/push.php';
 
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
@@ -24,11 +25,12 @@ set_exception_handler(function (Throwable $e) {
 });
 
 const ROUTES = [
-    'GET'  => ['boot', 'messages', 'file', 'invite', 'gifs', 'img', 'admin'],
+    'GET'  => ['boot', 'messages', 'file', 'invite', 'gifs', 'img', 'admin', 'push_key'],
     'POST' => ['register', 'login', 'logout', 'profile', 'password', 'poll',
                'server_create', 'server_update', 'server_delete', 'server_leave', 'invite_reset', 'invite_accept',
                'channel_create', 'channel_update', 'channel_delete', 'member_kick', 'member_role',
-               'send', 'edit', 'delete', 'read', 'voice_join', 'voice_leave', 'avatar', 'server_icon'],
+               'send', 'edit', 'delete', 'read', 'voice_join', 'voice_leave', 'avatar', 'server_icon',
+               'push_subscribe', 'push_unsubscribe', 'push_test', 'notify_level', 'notify_prefs'],
 ];
 // sendBeacon (tab closing) cannot set headers; leaving voice is the one write
 // that may arrive without it — the worst a forged one does is drop a presence row
@@ -137,7 +139,7 @@ function api_boot(): void {
     $u = require_user();
     touch_seen($u);
     $uid = (int) $u['id'];
-    $servers = q('SELECT s.id, s.name, s.owner_id, s.invite_code, s.icon, s.rev, m.role FROM members m
+    $servers = q('SELECT s.id, s.name, s.owner_id, s.invite_code, s.icon, s.rev, m.role, m.notify FROM members m
                   JOIN servers s ON s.id = m.server_id WHERE m.user_id = ? ORDER BY m.joined_at, s.id', [$uid])->fetchAll();
     $sids = array_map(fn($s) => (int) $s['id'], $servers);
     $byId = [];
@@ -145,17 +147,20 @@ function api_boot(): void {
         $byId[(int) $s['id']] = [
             'id' => (int) $s['id'], 'name' => $s['name'], 'owner' => (int) $s['owner_id'],
             'invite' => $s['invite_code'], 'icon' => $s['icon'], 'rev' => (int) $s['rev'], 'role' => $s['role'],
+            'notify' => $s['notify'],
             'channels' => [], 'members' => [],
         ];
     }
     $users = [];
     if ($sids) {
-        foreach (q('SELECT c.id, c.server_id, c.name, c.kind, c.position, c.last_msg_id, COALESCE(r.last_read_id, 0) AS read_id
+        foreach (q('SELECT c.id, c.server_id, c.name, c.kind, c.position, c.last_msg_id, COALESCE(r.last_read_id, 0) AS read_id,
+                      (SELECT COUNT(*) FROM mentions mn WHERE mn.user_id = ? AND mn.channel_id = c.id
+                         AND mn.message_id > COALESCE(r.last_read_id, 0)) AS ment
                     FROM channels c LEFT JOIN channel_reads r ON r.channel_id = c.id AND r.user_id = ?
-                    WHERE c.server_id IN (' . marks($sids) . ') ORDER BY c.position, c.id', array_merge([$uid], $sids)) as $c) {
+                    WHERE c.server_id IN (' . marks($sids) . ') ORDER BY c.position, c.id', array_merge([$uid, $uid], $sids)) as $c) {
             $byId[(int) $c['server_id']]['channels'][] = [
                 'id' => (int) $c['id'], 'name' => $c['name'], 'kind' => $c['kind'],
-                'last' => (int) $c['last_msg_id'], 'read' => (int) $c['read_id'],
+                'last' => (int) $c['last_msg_id'], 'read' => (int) $c['read_id'], 'ment' => (int) $c['ment'],
             ];
         }
         foreach (q('SELECT m.server_id, m.role, u.* FROM members m JOIN users u ON u.id = m.user_id
@@ -168,6 +173,7 @@ function api_boot(): void {
     out([
         'me'      => pub_user($u),
         'admin'   => is_admin($u),
+        'prefs'   => ['preview' => (bool) $u['push_preview']],
         'servers' => array_values($byId),
         'users'   => array_values($users),
         'voice'   => voice_states_for($sids),
@@ -206,6 +212,8 @@ function api_poll(): void {
     $ch = int_in($b, 'ch');
     $chServer = $ch ? (int) qv('SELECT server_id FROM channels WHERE id = ?', [$ch]) : 0;
     if ($chServer && !in_array($chServer, $sids, true)) $ch = 0;
+    if (!empty($b['vis'])) q('UPDATE users SET active_ch = ?, active_at = NOW() WHERE id = ?', [$ch ?: null, $uid]);
+    elseif (array_key_exists('vis', $b)) q('UPDATE users SET active_ch = NULL WHERE id = ? AND active_ch IS NOT NULL', [$uid]);
     if ($ch && !empty($b['typing'])) {
         q('INSERT INTO typing (channel_id, user_id, until_at) VALUES (?, ?, NOW(3) + INTERVAL 6 SECOND)
            ON DUPLICATE KEY UPDATE until_at = VALUES(until_at)', [$ch, $uid]);
@@ -550,6 +558,7 @@ function api_send(): void {
         q('INSERT INTO channel_reads (user_id, channel_id, last_read_id) VALUES (?, ?, ?)
            ON DUPLICATE KEY UPDATE last_read_id = GREATEST(last_read_id, VALUES(last_read_id))', [$u['id'], $c['id'], $mid]);
         q('DELETE FROM typing WHERE channel_id = ? AND user_id = ?', [$c['id'], $u['id']]);
+        store_mentions($mid, (int) $c['id'], mentioned_ids($text, (int) $c['server_id'], (int) $u['id']));
         db()->commit();
     } catch (Throwable $e) {
         if (db()->inTransaction()) db()->rollBack();
@@ -557,7 +566,7 @@ function api_send(): void {
         throw $e;
     }
     $row = q1('SELECT ' . MSG_COLS . ' FROM messages m WHERE m.id = ?', [$mid]);
-    out(['msg' => pack_messages([$row])[0]]);
+    respond_then(['msg' => pack_messages([$row])[0]], fn() => notify_message($mid));
 }
 
 function own_message(int $id, array $u, bool $managersToo): array {
@@ -577,6 +586,7 @@ function api_edit(): void {
     if (mb_strlen($text) > MAX_BODY) fail('too_long');
     if ($text === '' && !qv('SELECT 1 FROM attachments WHERE message_id = ?', [$m['id']])) fail('empty');
     q('UPDATE messages SET body = ?, edited_at = NOW(3), rev = NEXT VALUE FOR msg_rev WHERE id = ?', [$text, $m['id']]);
+    store_mentions((int) $m['id'], (int) $m['channel_id'], mentioned_ids($text, (int) $m['server_id'], (int) $m['user_id']));   // no push for edits
     out(['msg' => pack_messages([q1('SELECT ' . MSG_COLS . ' FROM messages m WHERE m.id = ?', [$m['id']])])[0]]);
 }
 
@@ -587,6 +597,7 @@ function api_delete(): void {
     // the row stays as a tombstone so pollers learn about the delete
     q("UPDATE messages SET deleted = 1, body = '', rev = NEXT VALUE FOR msg_rev WHERE id = ?", [$m['id']]);
     q('DELETE FROM attachments WHERE message_id = ?', [$m['id']]);
+    q('DELETE FROM mentions WHERE message_id = ?', [$m['id']]);
     delete_files($paths);
     out(['ok' => true]);
 }

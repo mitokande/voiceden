@@ -225,6 +225,10 @@ function pack_messages(array $rows): array {
             'gif' => (bool) $a['gif'],
         ];
     }
+    $mn = [];
+    foreach (q('SELECT message_id, user_id FROM mentions WHERE message_id IN (' . marks($ids) . ')', $ids) as $x) {
+        $mn[(int) $x['message_id']][] = (int) $x['user_id'];
+    }
     return array_map(fn($r) => [
         'id'  => (int) $r['id'],
         'ch'  => (int) $r['channel_id'],
@@ -236,6 +240,7 @@ function pack_messages(array $rows): array {
         'del' => (bool) $r['deleted'],
         'rev' => (int) $r['rev'],
         'att' => $r['deleted'] ? [] : ($att[(int) $r['id']] ?? []),
+        'mn'  => $r['deleted'] ? [] : ($mn[(int) $r['id']] ?? []),      // who it @mentions
     ], $rows);
 }
 

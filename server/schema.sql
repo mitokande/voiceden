@@ -162,3 +162,36 @@ CREATE TABLE IF NOT EXISTS gif_items (
 -- profile photos and den icons: key of a re-encoded 256×256 WebP in data/avatars
 ALTER TABLE users   ADD COLUMN IF NOT EXISTS avatar CHAR(32) NULL;
 ALTER TABLE servers ADD COLUMN IF NOT EXISTS icon   CHAR(32) NULL;
+
+-- notifications: Web Push subscriptions (one per browser/device), @mentions,
+-- per-den notification level, and where each person is looking right now
+CREATE TABLE IF NOT EXISTS push_subs (
+  id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  user_id     INT UNSIGNED NOT NULL,
+  endpoint    VARCHAR(700) NOT NULL,
+  ep_hash     BINARY(20) NOT NULL,              -- sha1(endpoint), the unique key
+  p256dh      VARCHAR(120) NOT NULL,
+  auth        VARCHAR(40) NOT NULL,
+  ua          VARCHAR(200) NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_ok     DATETIME NULL,
+  UNIQUE KEY uq_ep (ep_hash),
+  KEY k_user (user_id),
+  CONSTRAINT fk_ps_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS mentions (
+  user_id     INT UNSIGNED NOT NULL,
+  message_id  BIGINT UNSIGNED NOT NULL,
+  channel_id  INT UNSIGNED NOT NULL,
+  PRIMARY KEY (user_id, message_id),
+  KEY k_ch (user_id, channel_id, message_id),
+  KEY k_msg (message_id),
+  CONSTRAINT fk_mn_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_mn_msg  FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+ALTER TABLE members ADD COLUMN IF NOT EXISTS notify ENUM('all','mentions','none') NOT NULL DEFAULT 'all';
+ALTER TABLE users   ADD COLUMN IF NOT EXISTS push_preview TINYINT(1) NOT NULL DEFAULT 1;
+ALTER TABLE users   ADD COLUMN IF NOT EXISTS active_ch INT UNSIGNED NULL;
+ALTER TABLE users   ADD COLUMN IF NOT EXISTS active_at DATETIME NULL;

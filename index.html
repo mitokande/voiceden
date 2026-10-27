@@ -8,11 +8,18 @@
 <meta property="og:title" content="VoiceDen">
 <meta property="og:description" content="Arkadaşlarınla sesli sohbet: denler, kanallar, kalıcı mesajlar.">
 <meta name="theme-color" content="#131210">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%235fd8c8'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="VoiceDen">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%235fd8c8'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=7">
+<link rel="stylesheet" href="app.css?v=8">
 <script>
   // old quick-room invites (?r=room) still open the account-free room
   if (/[?&]r=/.test(location.search)) location.replace('classic.html' + location.search);
@@ -153,6 +160,7 @@
             <div class="gp-body" id="gifBody"><div class="gp-cols" id="gifCols"></div><div class="gp-note" id="gifNote"></div></div>
             <div class="gp-foot">Powered by KLIPY</div>
           </div>
+          <div class="mpop" id="mentionPop" role="listbox" aria-label="Bahsedilecek kişi" hidden></div>
           <div class="typing" id="typing"></div>
           <div class="cbox">
             <div class="staged" id="staged"></div>
@@ -230,6 +238,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
 <script src="js/voice.js?v=3"></script>
-<script src="js/app.js?v=7"></script>
+<script src="js/app.js?v=9"></script>
 </body>
 </html>

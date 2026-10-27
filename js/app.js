@@ -170,12 +170,18 @@
   const welcomeEl = $('welcome'), vJoin = $('vJoin'), chatPanel = $('chatPanel');
 
   // ---------- toasts / modals ----------
-  function toast(text, ok) {
+  function toast(text, ok, onClick, title) {
     const t = document.createElement('div');
-    t.className = 'toast' + (ok ? ' ok' : '');
-    t.textContent = text;
+    t.className = 'toast' + (ok ? ' ok' : '') + (onClick ? ' click' : '');
+    if (title) {
+      const b = document.createElement('b');
+      b.textContent = title;
+      t.append(b, document.createElement('br'));
+    }
+    t.append(text);
+    if (onClick) t.addEventListener('click', () => { t.remove(); onClick(); });
     $('toasts').appendChild(t);
-    setTimeout(() => t.remove(), 3800);
+    setTimeout(() => t.remove(), onClick ? 6000 : 3800);
   }
 
   const modalBack = $('modalBack'), modalEl = $('modal');
@@ -345,6 +351,7 @@
     authEl.hidden = true;
     app.hidden = false;
     initVoice();
+    initPush();
 
     let target = null;
     if (pendingInvite) target = await handleInvite();
@@ -381,6 +388,7 @@
       }
     }
     S.voice = b.voice;
+    S.prefs = b.prefs || { preview: true };
     S.online = new Set(b.online);
     for (const cid of [...S.stores.keys()]) if (!S.chans.has(cid)) S.stores.delete(cid);
   }
@@ -462,6 +470,7 @@
       autosize();
       clearStaged();
       closeGifs();
+      closeMention();
       const c = S.chans.get(cid);
       if (c && c.kind === 'voice') app.classList.toggle('chat-off', narrow() ? true : pref('vd-vchat', '1') === '0');
     }
@@ -496,9 +505,10 @@
     for (const sid of S.order) {
       const s = S.servers.get(sid), t = svTint(sid);
       const live = VD.voice.server === sid;
-      html += `<div class="rail-item${sid === S.sid ? ' active' : ''}${serverUnread(s) ? ' unread' : ''}">
+      const ment = s.channels.reduce((n, c) => n + (c.ment || 0), 0);
+      html += `<div class="rail-item${sid === S.sid ? ' active' : ''}${serverUnread(s) && s.notify !== 'none' ? ' unread' : ''}${s.notify === 'none' ? ' muted' : ''}">
         <button class="sv" data-sid="${sid}" title="${esc(s.name)}" style="--av-bg:${t.bg};--av-fg:${t.fg}">${svInner(s)}</button>
-        ${live ? '<span class="vdot" title="Bu dende sestesin"></span>' : ''}</div>`;
+        ${live ? '<span class="vdot" title="Bu dende sestesin"></span>' : ''}${ment ? `<span class="ment" title="${ment} bahsetme">${ment > 99 ? '99+' : ment}</span>` : ''}</div>`;
     }
     if (html !== railKey) { railList.innerHTML = html; railKey = html; }
   }
@@ -522,7 +532,7 @@
         const cls = 'ch' + (c.id === S.cid ? ' active' : '') + (c.kind === 'text' && unreadIn(c) && c.id !== S.cid ? ' unread' : '') +
           (c.kind === 'voice' && VD.voice.channel === c.id ? ' live' : '');
         return `<button class="${cls}" data-ch="${c.id}"><span class="ico">${c.kind === 'text' ? '#' : icon('vol')}</span>` +
-          `<span class="nm">${esc(c.name)}</span>` +
+          `<span class="nm">${esc(c.name)}</span>` + (c.ment && c.id !== S.cid ? `<span class="ment">${c.ment > 99 ? '99+' : c.ment}</span>` : '') +
           (mgr ? `<span class="edit" data-edit="${c.id}" role="button" title="Kanalı düzenle">${icon('gear')}</span>` : '') + '</button>';
       };
       html += cat('Metin kanalları', 'text');
@@ -664,10 +674,16 @@
     typingEl.innerHTML = '<span class="dots"><i></i><i></i><i></i></span><span>' + who + '…</span>';
   }
 
+  // (2) = mentions waiting, • = something unread
   function renderTitle() {
-    let n = 0;
-    for (const c of S.chans.values()) if (c.kind === 'text' && unreadIn(c) && !(c.id === S.cid && !document.hidden)) n++;
-    document.title = (n ? '(' + n + ') ' : '') + (S.chans.get(S.cid) ? (S.chans.get(S.cid).kind === 'text' ? '#' : '') + S.chans.get(S.cid).name + ' · ' : '') + 'VoiceDen';
+    let n = 0, ment = 0;
+    for (const c of S.chans.values()) {
+      ment += c.ment || 0;
+      const s = S.servers.get(c.sid);
+      if (c.kind === 'text' && unreadIn(c) && s && s.notify !== 'none' && !(c.id === S.cid && !document.hidden)) n++;
+    }
+    const c = S.chans.get(S.cid);
+    document.title = (ment ? '(' + ment + ') ' : n ? '• ' : '') + (c ? (c.kind === 'text' ? '#' : '') + c.name + ' · ' : '') + 'VoiceDen';
   }
 
   function renderWelcome() {
@@ -697,11 +713,19 @@
    * snippet's stars stay literal), everything left is escaped, and only then
    * are the few known tags added — the text itself can never become markup.
    */
-  const PH_A = '', PH_B = '';
+  const PH_A = '\uE000', PH_B = '\uE001';
+  let nameIdx = null, nameIdxSize = -1;
+  function userByName(n) {
+    if (!nameIdx || nameIdxSize !== S.users.size) {
+      nameIdx = new Map([...S.users.values()].map(u => [u.username.toLowerCase(), u]));
+      nameIdxSize = S.users.size;
+    }
+    return nameIdx.get(n);
+  }
   function formatBody(text) {
     const keep = [];
     const stash = html => PH_A + (keep.push(html) - 1) + PH_B;
-    text = String(text).replace(/[]/g, '');
+    text = String(text).replace(/[\uE000\uE001]/g, '');
     text = text.replace(/\n?```(?:([\w+#-]{1,20})\n)?\n?([\s\S]*?)```\n?/g,
       (_, lang, code) => stash(`<pre class="md-pre"><code>${esc(code.replace(/\n$/, ''))}</code></pre>`));
     text = text.replace(/`([^`\n]+)`/g, (_, c) => stash(`<code class="md-code">${esc(c)}</code>`));
@@ -710,6 +734,14 @@
     text = text.replace(URL_RE, m => {
       const raw = trimUrl(m);
       return stash(`<a href="${esc(raw)}" target="_blank" rel="noopener noreferrer nofollow">${esc(raw)}</a>`) + m.slice(raw.length);
+    });
+
+    text = text.replace(/(?<![\p{L}\p{N}_.@])@([a-z0-9_.]{2,24})/giu, (all, name) => {
+      const key = name.replace(/\.+$/, '').toLowerCase();
+      if (['herkes', 'everyone', 'here', 'burada'].includes(key)) return stash(`<span class="md-mention me">@${esc(key)}</span>`) + name.slice(key.length);
+      const u = userByName(key);
+      if (!u) return all;
+      return stash(`<span class="md-mention${u.id === S.me.id ? ' me' : ''}" title="@${esc(u.username)}">@${esc(u.name)}</span>`) + name.slice(key.length);
     });
 
     let html = esc(text);
@@ -727,7 +759,7 @@
     // runs of "> " lines become one quote; the newline around it is the block's own
     html = html.replace(/(^|\n)((?:&gt; ?[^\n]*(?:\n|$))+)/g, (_, pre, block) =>
       '<blockquote class="md-quote">' + block.replace(/(^|\n)&gt; ?/g, '$1').replace(/\n$/, '') + '</blockquote>');
-    return html.replace(/(\d+)/g, (_, i) => keep[+i]);
+    return html.replace(/\uE000(\d+)\uE001/g, (_, i) => keep[+i]);
   }
   // what a link preview may come from: not code, not a spoiler
   const previewText = t => String(t).replace(/```[\s\S]*?```/g, '').replace(/`[^`\n]+`/g, '').replace(/\|\|[^\n]+?\|\|/g, '');
@@ -857,7 +889,7 @@
     if (newFrom != null && m.id > newFrom && (!prev || prev.id <= newFrom) && m.uid !== S.me.id) html += '<div class="new-line">YENİ</div>';
     const mine = m.uid === S.me.id, s = S.servers.get(m.sid);
     const canDel = mine || isMgr(s);
-    html += `<div class="m${head ? ' head' : ''}">
+    html += `<div class="m${head ? ' head' : ''}${m.mn && m.mn.includes(S.me.id) ? ' mention' : ''}">
       <div class="gut">${head ? avHtml(m.uid, 'lg') : `<span class="tm">${hhmm(m.ts)}</span>`}</div>
       <div class="cnt">${head ? `<div class="meta"><span class="who" style="--who:${tintOf(m.uid).fg}">${esc(nameOf(m.uid))}</span><span class="when">${esc(whenLabel(m.ts))}</span></div>` : ''}
       ${m.body ? `<div class="body">${formatBody(m.body)}${m.ets ? '<span class="edited">(düzenlendi)</span>' : ''}</div>` : ''}</div>
@@ -999,6 +1031,13 @@
     const c = S.chans.get(m.ch);
     if (!c) return;
     if (m.ch === S.cid && S.typing.includes(m.uid)) { S.typing = S.typing.filter(u => u !== m.uid); renderTyping(); }
+    // newer than anything this channel has had = a fresh message, not a re-read or an edit
+    if (!m.del && m.id > c.last && m.uid !== S.me.id) {
+      const mine = !!(m.mn && m.mn.includes(S.me.id));
+      const looking = m.ch === S.cid && !document.hidden && messagesEl.offsetParent && atBottom();
+      if (mine && !looking) c.ment = (c.ment || 0) + 1;
+      alertFor(m, c, mine, looking);
+    }
     if (!m.del) {
       if (m.id > c.last) c.last = m.id;
       if (m.uid === S.me.id && m.id > c.read) c.read = m.id;
@@ -1064,8 +1103,9 @@
   function markRead() {
     const c = S.chans.get(S.cid);
     if (!c || document.hidden || !messagesEl.offsetParent || !atBottom()) return;
-    if (c.last <= c.read) return;
+    if (c.last <= c.read && !c.ment) return;
     c.read = c.last;
+    c.ment = 0;
     scheduleUi();
     clearTimeout(readTimer);
     const cid = c.id, id = c.read;
@@ -1274,6 +1314,7 @@
   let lastTypingPing = 0;
   chatInput.addEventListener('input', () => {
     autosize();
+    syncMentionPop();
     if (chatInput.value.trim() && Date.now() - lastTypingPing > 4000) {
       lastTypingPing = Date.now();
       S.typingPing = true;
@@ -1281,6 +1322,7 @@
     }
   });
   chatInput.addEventListener('keydown', e => {
+    if (mentionKey(e)) return;
     if (formatKey(e, chatInput)) return;
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && !touch && !inFence(chatInput)) { e.preventDefault(); send(); return; }
     // ↑ in an empty box edits your last message, as in most chat apps
@@ -1427,7 +1469,8 @@
     clearTimeout(pollTimer);
     if (polling || !S.me) return;
     polling = true;
-    const body = { since: S.cursor, ch: S.cid || 0, typing: S.typingPing ? 1 : 0, voice: VD.voice.beat() };
+    const body = { since: S.cursor, ch: S.cid || 0, typing: S.typingPing ? 1 : 0, voice: VD.voice.beat(),
+                   vis: !document.hidden && document.hasFocus() ? 1 : 0 };
     S.typingPing = false;
     let more = false;
     try {
@@ -1467,6 +1510,248 @@
     if (!document.hidden) { requestPoll(); markRead(); scheduleUi(); }
   });
   window.addEventListener('focus', () => markRead());
+
+  // ============================================================ NOTIFICATIONS
+  // In front: a short ping and a clickable toast for other channels. Tab in the
+  // background: Web Push (sw.js) when this device is subscribed, otherwise a
+  // page-made Notification. Per-den level: all / mentions / none.
+  const NOTIFY = [['all', 'Tümü'], ['mentions', 'Bahsedilince'], ['none', 'Kapalı']];
+  const push = { ok: 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window, reg: null, sub: null };
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+  let pingCtx = null, lastPing = 0;
+  function ping(strong) {
+    if (pref('vd-sound', '1') !== '1' || VD.voice.deafened) return;
+    const now = Date.now();
+    if (now - lastPing < 1200) return;
+    lastPing = now;
+    try {
+      pingCtx = pingCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (pingCtx.state === 'suspended') pingCtx.resume().catch(() => {});
+      const t = pingCtx.currentTime;
+      (strong ? [[880, 0], [1320, 0.09], [1760, 0.18]] : [[880, 0], [1320, 0.09]]).forEach(([f, d]) => {
+        const o = pingCtx.createOscillator(), g = pingCtx.createGain();
+        o.type = 'sine';
+        o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t + d);
+        g.gain.exponentialRampToValueAtTime(0.07, t + d + 0.012);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.2);
+        o.connect(g).connect(pingCtx.destination);
+        o.start(t + d);
+        o.stop(t + d + 0.22);
+      });
+    } catch (e) {}
+  }
+
+  const plainLine = body => String(body || '').replace(/```[\s\S]*?```/g, '[kod]').replace(/\|\|[^\n]+?\|\|/g, '[spoiler]')
+    .replace(/\*\*|__|~~|`/g, '').replace(/\s+/g, ' ').trim();
+
+  function alertFor(m, c, mentioned, looking) {
+    const s = S.servers.get(c.sid);
+    if (!s || s.notify === 'none' || (s.notify === 'mentions' && !mentioned)) return;
+    if (looking) return;
+    const who = nameOf(m.uid);
+    const where = (c.kind === 'text' ? '#' : '🔊 ') + c.name + (c.sid !== S.sid ? ' · ' + s.name : '');
+    const text = plainLine(m.body).slice(0, 140) || (m.att.length && m.att[0].gif ? 'GIF gönderdi' : '📎 dosya gönderdi');
+    const open = () => { go(c.sid, c.id); window.focus(); };
+    if (!document.hidden && document.hasFocus()) {
+      ping(mentioned);
+      toast(text, false, open, who + ' · ' + where);
+      return;
+    }
+    // in the background: the service worker shows the push; without one, the page does it
+    if (push.sub || !push.ok || Notification.permission !== 'granted') return;
+    try {
+      const u = S.users.get(m.uid);
+      const n = new Notification(who + ' · ' + where, {
+        body: S.prefs.preview === false ? 'Yeni mesaj' : text, tag: 'ch' + c.id, renotify: mentioned,
+        icon: u && u.av ? imgUrl(u.av) : 'icons/icon-192.png',
+      });
+      n.onclick = () => { n.close(); open(); };
+    } catch (e) {}
+  }
+
+  const b64uBytes = k => {
+    const raw = atob(k.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((k.length + 3) % 4));
+    return Uint8Array.from(raw, ch => ch.charCodeAt(0));
+  };
+  async function initPush() {
+    if (!('serviceWorker' in navigator)) return;
+    try { push.reg = await navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }); } catch (e) { return; }
+    navigator.serviceWorker.addEventListener('message', e => {
+      const d = e.data || {};
+      if (d.type === 'push') requestPoll();
+      if (d.type === 'open' && d.url) openHash(new URL(d.url).hash);
+    });
+    if (!push.ok) return;
+    push.sub = await push.reg.pushManager.getSubscription().catch(() => null);
+    // whoever is signed in on this browser now owns its endpoint
+    if (push.sub && Notification.permission === 'granted') api('push_subscribe', push.sub.toJSON()).catch(() => {});
+  }
+  async function enablePush() {
+    const perm = await Notification.requestPermission();      // must stay first: it needs the click
+    if (perm !== 'granted') throw apiErr(perm === 'denied' ? 'push_denied' : 'push_dismissed');
+    const { key } = await api('push_key', null, { get: true });
+    const reg = push.reg || await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(key) });
+    await api('push_subscribe', sub.toJSON());
+    push.sub = sub;
+  }
+  async function disablePush() {
+    const sub = push.sub;
+    push.sub = null;
+    if (!sub) return;
+    await api('push_unsubscribe', { endpoint: sub.endpoint }).catch(() => {});
+    await sub.unsubscribe().catch(() => {});
+  }
+  function openHash(hash) {
+    const h = String(hash || '').match(/^#\/(\d+)(?:\/(\d+))?/);
+    if (h && S.servers.has(+h[1])) go(+h[1], +h[2] || 0);
+  }
+  window.addEventListener('hashchange', () => openHash(location.hash));
+
+  async function setNotifyLevel(sid, level) {
+    const s = S.servers.get(sid);
+    if (!s) return;
+    const was = s.notify;
+    s.notify = level;
+    scheduleUi();
+    try { await api('notify_level', { sid, level }); }
+    catch (e) { s.notify = was; scheduleUi(); toast(errText(e)); }
+  }
+
+  function renderNotifTab(el) {
+    let state, note = '', canToggle = true;
+    if (!push.ok && isIOS && !standalone) {
+      state = 'Ana ekrana eklenmeli'; canToggle = false;
+      note = 'iPhone ve iPad’de bildirimler yalnızca uygulama olarak eklenince çalışır: Safari’de Paylaş → Ana Ekrana Ekle, sonra VoiceDen’i oradan açıp buraya dön.';
+    } else if (!push.ok) {
+      state = 'Bu tarayıcı desteklemiyor'; canToggle = false;
+      note = 'Uygulama açıkken yine ses ve uyarı alırsın.';
+    } else if (Notification.permission === 'denied') {
+      state = 'Engellendi'; canToggle = false;
+      note = 'Bu site için bildirimleri tarayıcı ayarlarından (adres çubuğundaki kilit simgesi) açman gerekiyor.';
+    } else if (push.sub) {
+      state = 'Açık';
+      note = 'Sekme ya da tarayıcı kapalıyken de bu cihaza bildirim gelir.';
+    } else {
+      state = 'Kapalı';
+      note = 'Açınca, VoiceDen kapalıyken de bu cihaza bildirim gelir.';
+    }
+    el.innerHTML = `<div class="settings-sec">
+        <div class="k">Bu cihaz</div>
+        <div class="notif-dev"><span class="notif-state${push.sub ? ' on' : ''}">${esc(state)}</span>
+          ${canToggle ? `<button class="btn small ${push.sub ? '' : 'primary'}" id="nToggle">${push.sub ? 'Kapat' : 'Bildirimleri aç'}</button>` : ''}
+          ${push.sub ? '<button class="btn small" id="nTest">Deneme gönder</button>' : ''}</div>
+        <div class="note">${esc(note)}</div>
+        <div class="err" id="nErr"></div>
+      </div>
+      <div class="settings-sec">
+        <button class="pop-toggle" id="nPreview" aria-pressed="${S.prefs.preview !== false}"><span>Bildirimde mesajın kendisini göster</span><span class="sw"><i></i></span></button>
+        <button class="pop-toggle" id="nSound" aria-pressed="${pref('vd-sound', '1') === '1'}"><span>Uygulama açıkken ses çal</span><span class="sw"><i></i></span></button>
+        <div class="note">Mesaj gizlenirse bildirimde yalnızca kimden ve hangi kanaldan geldiği görünür.</div>
+      </div>
+      <div class="settings-sec">
+        <div class="k">Denler</div>
+        ${S.order.length ? S.order.map(sid => { const s = S.servers.get(sid); return `<div class="notif-den"><span>${esc(s.name)}</span>
+          <div class="seg" data-sid="${sid}">${NOTIFY.map(([k, t]) => `<button data-n="${k}" aria-pressed="${s.notify === k}">${t}</button>`).join('')}</div></div>`; }).join('')
+          : '<div class="note">Henüz bir denin yok.</div>'}
+        <div class="note"><b>Bahsedilince</b>: yalnızca biri <code class="md-code">@kullanıcıadın</code> ya da <code class="md-code">@herkes</code> yazınca.</div>
+      </div>`;
+    const err = el.querySelector('#nErr');
+    const toggle = el.querySelector('#nToggle');
+    if (toggle) toggle.addEventListener('click', async () => {
+      toggle.disabled = true;
+      toggle.textContent = push.sub ? 'Kapatılıyor…' : 'Açılıyor…';     // a first subscription can take a few seconds
+      try { if (push.sub) await disablePush(); else await enablePush(); renderNotifTab(el); }
+      catch (e) {
+        err.textContent = e.code === 'push_denied' ? 'Bildirim izni verilmedi.' : e.code === 'push_dismissed' ? 'İzin penceresi kapatıldı.'
+          : e instanceof DOMException ? 'Tarayıcı push aboneliğini açamadı (gizli pencerede çalışmaz). Normal bir pencerede tekrar dene.'
+          : errText(e);
+        toggle.disabled = false;
+        toggle.textContent = push.sub ? 'Kapat' : 'Bildirimleri aç';
+      }
+    });
+    const test = el.querySelector('#nTest');
+    if (test) test.addEventListener('click', async () => {
+      test.disabled = true;
+      try { await api('push_test', { endpoint: push.sub.endpoint }); toast('Deneme bildirimi gönderildi', true); }
+      catch (e) { err.textContent = e.code === 'no_subscription' ? 'Bu cihazın aboneliği sunucuda yok — kapatıp yeniden aç.' : errText(e); }
+      setTimeout(() => { test.disabled = false; }, 3000);
+    });
+    el.querySelector('#nPreview').addEventListener('click', async e => {
+      const b = e.currentTarget, on = b.getAttribute('aria-pressed') !== 'true';
+      b.setAttribute('aria-pressed', String(on));
+      S.prefs.preview = on;
+      try { await api('notify_prefs', { preview: on ? 1 : 0 }); } catch (ex) { toast(errText(ex)); }
+    });
+    el.querySelector('#nSound').addEventListener('click', e => {
+      const b = e.currentTarget, on = b.getAttribute('aria-pressed') !== 'true';
+      b.setAttribute('aria-pressed', String(on));
+      setPref('vd-sound', on ? '1' : '0');
+      if (on) { lastPing = 0; ping(false); }
+    });
+    el.querySelectorAll('.notif-den .seg').forEach(seg => seg.addEventListener('click', e => {
+      const b = e.target.closest('[data-n]');
+      if (!b) return;
+      setNotifyLevel(+seg.dataset.sid, b.dataset.n);
+      seg.querySelectorAll('[data-n]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    }));
+  }
+
+  // ---------- @mention autocomplete ----------
+  const mpop = $('mentionPop');
+  const M = { items: [], i: 0, start: -1 };
+  function mentionQuery() {
+    const pos = chatInput.selectionStart;
+    if (pos !== chatInput.selectionEnd) return null;
+    const m = chatInput.value.slice(0, pos).match(/(^|[\s(])@([\p{L}\p{N}_.]{0,24})$/u);
+    return m ? { q: m[2].toLocaleLowerCase('tr'), start: pos - m[2].length - 1 } : null;
+  }
+  function syncMentionPop() {
+    const s = S.servers.get(S.sid);
+    const mq = s && mentionQuery();
+    if (!mq) { closeMention(); return; }
+    const people = s.members.map(x => S.users.get(x.id)).filter(u => u && u.id !== S.me.id)
+      .filter(u => u.username.startsWith(mq.q) || u.name.toLocaleLowerCase('tr').split(/\s+/).some(w => w.startsWith(mq.q)))
+      .slice(0, 7).map(u => ({ key: u.username, u }));
+    if ('herkes'.startsWith(mq.q)) people.push({ key: 'herkes', all: true });
+    if (!people.length) { closeMention(); return; }
+    M.items = people; M.start = mq.start; M.i = Math.min(M.i, people.length - 1);
+    mpop.innerHTML = people.map((p, i) => `<button type="button" role="option" class="mp-row${i === M.i ? ' on' : ''}" data-i="${i}" aria-selected="${i === M.i}">` +
+      (p.all ? `<span class="av sm" style="--av-bg:var(--fill-2);--av-fg:var(--text)">@</span><span class="nm">herkes</span><span class="un">dendeki herkes</span>`
+             : `${avHtml(p.u.id, 'sm')}<span class="nm">${esc(p.u.name)}</span><span class="un">@${esc(p.u.username)}</span>`) + '</button>').join('');
+    mpop.hidden = false;
+  }
+  function closeMention() { mpop.hidden = true; M.items = []; M.i = 0; }
+  function pickMention(i) {
+    const p = M.items[i];
+    if (!p) return;
+    const pos = chatInput.selectionStart;
+    chatInput.setRangeText('@' + p.key + ' ', M.start, pos, 'end');
+    closeMention();
+    chatInput.focus();
+    autosize();
+  }
+  function mentionKey(e) {
+    if (mpop.hidden || !M.items.length) return false;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      M.i = (M.i + (e.key === 'ArrowDown' ? 1 : M.items.length - 1)) % M.items.length;
+      syncMentionPop();
+      return true;
+    }
+    if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') { e.preventDefault(); pickMention(M.i); return true; }
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMention(); return true; }
+    return false;
+  }
+  mpop.addEventListener('mousedown', e => {
+    const b = e.target.closest('[data-i]');
+    if (b) { e.preventDefault(); pickMention(+b.dataset.i); }
+  });
+  chatInput.addEventListener('blur', () => setTimeout(closeMention, 120));
+  chatInput.addEventListener('click', syncMentionPop);
 
   // ============================================================ VOICE HOOKS
   let voiceReady = false;
@@ -1536,10 +1821,19 @@
       `<button class="teal" data-m="invite">Arkadaşını davet et ${icon('link')}</button>` +
       (mgr ? `<button data-m="text">Metin kanalı ekle <span>#</span></button><button data-m="voice">Ses kanalı ekle ${icon('vol')}</button>` +
              `<button data-m="settings">Den ayarları ${icon('gear')}</button>` : '') +
+      `<div class="menu-notif"><span>Bildirimler</span><div class="seg">${NOTIFY.map(([k, t]) =>
+        `<button data-n="${k}" aria-pressed="${s.notify === k}">${t}</button>`).join('')}</div></div><hr>` +
       `<button data-m="new">Başka bir den kur / katıl ${icon('plus')}</button>` +
       (s.role !== 'owner' ? `<hr><button class="warn" data-m="leave">Denden ayrıl ${icon('out')}</button>` : '');
     $('side').appendChild(menuEl);
     menuEl.addEventListener('click', async ev => {
+      const nb = ev.target.closest('[data-n]');
+      if (nb) {
+        ev.stopPropagation();
+        setNotifyLevel(s.id, nb.dataset.n);
+        menuEl.querySelectorAll('[data-n]').forEach(x => x.setAttribute('aria-pressed', String(x === nb)));
+        return;
+      }
       const b = ev.target.closest('[data-m]');
       if (!b) return;
       closeMenu();
@@ -1874,7 +2168,7 @@
   function openSettings(tab) {
     let tint = S.me.tint;
     const m = openModal(`<h3>Ayarlar</h3>
-      <div class="seg tabs" id="stTabs"><button data-tab="acc">Hesap</button><button data-tab="audio">Ses</button></div>
+      <div class="seg tabs" id="stTabs"><button data-tab="acc">Hesap</button><button data-tab="notif">Bildirimler</button><button data-tab="audio">Ses</button></div>
       <div id="tabAcc">
         <div class="settings-sec"><div class="pic-edit">
           <span class="av xl" style="--av-bg:${tintOf(S.me.id).bg};--av-fg:${tintOf(S.me.id).fg}">${avInner(S.me.id)}</span>
@@ -1899,12 +2193,15 @@
         </div>
         <div class="settings-sec"><div><button class="btn danger small" id="usOut">${icon('out')} Çıkış yap</button></div></div>
       </div>
+      <div id="tabNotif" hidden></div>
       <div id="tabAudio" hidden></div>
       <div class="acts"><button class="btn" data-close>Kapat</button></div>`);
     const setTab = t => {
       m.querySelectorAll('#stTabs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === t)));
       m.querySelector('#tabAcc').hidden = t !== 'acc';
       m.querySelector('#tabAudio').hidden = t !== 'audio';
+      m.querySelector('#tabNotif').hidden = t !== 'notif';
+      if (t === 'notif') renderNotifTab(m.querySelector('#tabNotif'));
       if (t === 'audio') VD.voice.mountPanel(m.querySelector('#tabAudio'));
       else VD.voice.closePanel();
     };
@@ -1962,7 +2259,7 @@
       try { await api('logout', {}); } catch (e) {}
       location.href = location.pathname;
     });
-    setTab(tab === 'audio' ? 'audio' : 'acc');
+    setTab(['audio', 'notif'].includes(tab) ? tab : 'acc');
   }
 
   // ============================================================ GO

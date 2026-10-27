@@ -21,6 +21,8 @@ The old account-free single-file room still lives at `classic.html`; any
 | `server/lib.php` | DB, sessions, permissions, wire formats |
 | `server/gifs.php` | GIF search through KLIPY (`gifs` endpoint, `store_gif` for sending) |
 | `server/admin.php` | admin dashboard data (`GET admin`, `admin&full=1`) |
+| `server/push.php` | @mentions, Web Push (VAPID + aes128gcm in plain PHP), notification endpoints |
+| `sw.js`, `manifest.json`, `icons/` | service worker for push, installable-app manifest (needed for iPhone push), app icons |
 | `admin.html`, `admin.css`, `js/admin.js` | admin dashboard page (server + VoiceDen statistics) |
 | `server/schema.sql` | idempotent schema (re-runnable) |
 | `server/config.php` | DB credentials and `klipy_key` — **gitignored**; copy `config.example.php` |
@@ -88,6 +90,54 @@ server**: `voice_join {ch, peer}` claims a seat and returns everyone there.
   only if deafen took it.
 - Screen share: separate PeerJS call tagged `metadata.kind: 'screen'`; sharing
   is also reported to the server so the sidebar shows a CANLI badge.
+
+## Notifications
+
+Three layers, one set of rules (`members.notify` per den: `all` / `mentions` / `none`):
+
+1. **App in front** (`alertFor()` in app.js, fed by poll): a short ping (WebAudio,
+   setting "Uygulama açıkken ses çal") and a clickable toast for messages in
+   channels you are not looking at.
+2. **Tab in the background, no push subscription on this device**: a page-made
+   `Notification` (only if permission was granted). Background timers are
+   throttled, so this can lag up to a minute — which is why layer 3 exists.
+3. **Web Push** (works with the tab or browser closed): `sw.js` + the
+   subscription made in Settings → Bildirimler. After `send`, the API answers
+   the sender first (`respond_then()` → `litespeed_finish_request()`), then
+   `notify_message()` pushes to every member whose level allows it, skipping
+   anyone whose focused tab reported (`poll` `vis:1`) that exact channel in the
+   last 8 s. Payloads are encrypted per RFC 8291 with openssl (no library);
+   VAPID keys live in `server/config.php` (`vapid_public/private/subject`) —
+   regenerating them invalidates every subscription. 404/410 from a push
+   service deletes the subscription. Push endpoints are allow-listed
+   (`push_host_ok()`): Google (`fcm.googleapis.com` and Chrome's newer
+   `*.google.com/fcm/…`), Mozilla, Apple, Windows.
+
+The service worker skips the system notification when a focused, visible app
+window exists (that window toasts from its next poll), keeps one notification
+per channel (`tag: ch<id>`, later ones update it quietly with "+N mesaj
+daha", a mention rings again via `renotify`), and clicking opens or focuses
+the app on that channel. Pushes are handled one at a time so bursts count up.
+
+**Mentions**: `@username` of a den member, or `@herkes` / `@everyone` /
+`@here` / `@burada` for everyone. Parsed server-side on send and edit into the
+`mentions` table (code is ignored); messages carry `mn` (mentioned user ids);
+boot gives unread mention counts per channel (`ment`) → red badges on the
+channel and the den's rail icon, and `(n)` in the tab title. The composer
+autocompletes `@` from the den's members. Edits update mentions but never push.
+
+**iPhone/iPad**: Web Push only works for the Home Screen app (Safari → Paylaş →
+Ana Ekrana Ekle), hence `manifest.json` and the apple-touch icon; the
+settings tab explains this when it detects iOS outside standalone mode.
+
+Testing push: headless Playwright contexts are incognito-like (Chrome refuses
+push there) — use `launchPersistentContext`. Chrome for Testing does get a real
+`jmt17.google.com` endpoint and real delivery; wait up to ~30 s for the first
+subscription, and close the app tab (the worker stays) so the server stops
+seeing it as "looking". `ServiceWorker.deliverPushMessage` over CDP tests the
+worker alone. To test the PHP crypto without a browser, temporarily set
+`'push_test_host' => '127.0.0.1'` in config, run a local endpoint and decrypt
+in Node (RFC 8291) — remove the line afterwards.
 
 ## Message formatting
 
@@ -217,8 +267,7 @@ Test sign-ups count against the register throttle (20 per IP per hour): if a run
 
 0. ~~GIF search~~ — done (KLIPY), key configured.
 1. **DMs + friends** — a "home" entry on the rail; DM = a server-less channel with two members.
-2. **@mentions + notifications** — mention parsing, red badge counts, desktop
-   notifications / sound when the tab is hidden.
+2. ~~@mentions + notifications~~ — done (in-app, page notifications, Web Push).
 3. **Replies and reactions** on messages.
 4. ~~Avatars and den icons~~ — done. A short status line is still open.
 5. **Channel order / categories** (drag to reorder), finer roles (who may create channels, kick, delete messages).
