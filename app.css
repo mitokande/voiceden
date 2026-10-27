@@ -1,4 +1,5 @@
 :root{
+  color-scheme:dark;               /* dark scrollbars, pickers and autofill chrome */
   --bg:#131210;
   --rail:#0e0d0c;
   --panel:#1b1916;
@@ -64,6 +65,16 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .in:focus-within{border-color:var(--teal-line)}
 .in input{flex:1;min-width:0;border:0;background:none;outline:none;font-size:14px}
 .in input::placeholder{color:var(--text-faint)}
+/* Chrome paints autofilled fields light blue with black text and ignores
+   background-color there; an inset shadow in the box's own colour covers it.
+   Two rules on purpose: one unknown selector would void a combined list. */
+.in input:-webkit-autofill{
+  -webkit-box-shadow:0 0 0 100px var(--sunken) inset;box-shadow:0 0 0 100px var(--sunken) inset;
+  -webkit-text-fill-color:var(--text);caret-color:var(--text);transition:background-color 9999s 0s;
+}
+.in input:autofill{
+  box-shadow:0 0 0 100px var(--sunken) inset;-webkit-text-fill-color:var(--text);caret-color:var(--text);
+}
 .in .pre{font:400 13px var(--mono);color:var(--text-faint)}
 
 .btn{
