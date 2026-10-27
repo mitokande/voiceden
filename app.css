@@ -29,7 +29,75 @@
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
   --chat-w:360px;
   --shadow:0 20px 50px rgba(0,0,0,.5);
+  /* roles, not just hues: an accent that has to be read as text, warnings,
+     chrome that floats over content */
+  --teal-text:#5fd8c8;
+  --link-line:rgba(95,216,200,.35);
+  --amber:#f3c969;
+  --amber-bg:rgba(243,201,105,.16);
+  --amber-wash:rgba(243,201,105,.06);
+  --amber-wash-2:rgba(243,201,105,.09);
+  --owner:#f3d9bf;
+  --thumb:rgba(255,255,255,.13);
+  --thumb-hover:rgba(255,255,255,.24);
+  --thumb-faint:rgba(255,255,255,.08);
+  --dash:rgba(255,255,255,.16);
+  --dock-bg:rgba(27,25,22,.92);
+  --drop-bg:rgba(19,18,16,.92);
+  --grab:rgba(255,255,255,.15);
+  --row-hover:rgba(255,255,255,.025);
+  --scrim:rgba(10,9,8,.72);
+  --spoiler-hover:#5a554d;
 }
+/* Light: warm paper instead of warm near-black. The accent fill gets a step
+   deeper so it holds on white, and accent text a lot deeper (#5fd8c8 is
+   1.6:1 on white; --teal-text is 5:1). Set by the inline script in <head>. */
+:root[data-theme="light"]{
+  color-scheme:light;
+  --bg:#f6f4ef;
+  --rail:#e8e4dc;
+  --panel:#ffffff;
+  --panel-2:#efece6;
+  --sunken:#f3f0ea;
+  --input:#ffffff;
+  --hover:rgba(40,30,15,.05);
+  --line:rgba(40,30,15,.10);
+  --line-soft:rgba(40,30,15,.08);
+  --line-hard:rgba(40,30,15,.16);
+  --fill:rgba(40,30,15,.06);
+  --fill-2:rgba(40,30,15,.11);
+  --teal:#3fc7b5;
+  --teal-dim:rgba(13,128,114,.12);
+  --teal-line:rgba(13,128,114,.45);
+  --text:#1d1b18;
+  --text-body:#34302a;
+  --text-dim:#655f56;
+  --text-faint:#867f74;
+  --bar-idle:#cfc9be;
+  --red:#b52e27;
+  --red-bg:rgba(181,46,39,.10);
+  --red-bg-2:rgba(181,46,39,.13);
+  --shadow:0 18px 44px rgba(40,30,15,.16);
+  --teal-text:#0a6f62;
+  --link-line:rgba(10,111,98,.35);
+  --amber:#8a5f00;
+  --amber-bg:rgba(191,135,0,.15);
+  --amber-wash:rgba(191,135,0,.07);
+  --amber-wash-2:rgba(191,135,0,.11);
+  --owner:#93551c;
+  --thumb:rgba(40,30,15,.20);
+  --thumb-hover:rgba(40,30,15,.34);
+  --thumb-faint:rgba(40,30,15,.13);
+  --dash:rgba(40,30,15,.22);
+  --dock-bg:rgba(255,255,255,.92);
+  --drop-bg:rgba(246,244,239,.94);
+  --grab:rgba(40,30,15,.2);
+  --row-hover:rgba(40,30,15,.035);
+  --scrim:rgba(30,25,15,.35);
+  --spoiler-hover:#b7b0a4;
+}
+/* the switch itself fades instead of snapping */
+html.theme-fade,html.theme-fade *{transition:background-color .25s ease,color .25s ease,border-color .25s ease,fill .25s ease!important}
 *{box-sizing:border-box;margin:0;padding:0}
 [hidden]{display:none!important}
 html,body{height:100%}
@@ -51,26 +119,26 @@ button{background:none;border:0;cursor:pointer}
 ::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
 ::-webkit-scrollbar-button{display:none;width:0;height:0}
 ::-webkit-scrollbar-thumb{
-  background-color:rgba(255,255,255,.13);background-clip:padding-box;
+  background-color:var(--thumb);background-clip:padding-box;
   border:3px solid transparent;border-radius:999px;min-height:44px;
 }
-::-webkit-scrollbar-thumb:hover{background-color:rgba(255,255,255,.24)}
+::-webkit-scrollbar-thumb:hover{background-color:var(--thumb-hover)}
 ::-webkit-scrollbar-thumb:active{background-color:rgba(95,216,200,.6)}
 /* the narrow side columns: thinner and fainter. (Showing it only while the
    column is hovered does not work: Chromium never repaints a scrollbar when
    its scroller's :hover changes.) */
 .side-scroll::-webkit-scrollbar,.mlist::-webkit-scrollbar,.gp-body::-webkit-scrollbar,.mem-admin::-webkit-scrollbar{width:8px}
 .side-scroll::-webkit-scrollbar-thumb,.mlist::-webkit-scrollbar-thumb,.gp-body::-webkit-scrollbar-thumb,.mem-admin::-webkit-scrollbar-thumb{
-  border-width:2px;background-color:rgba(255,255,255,.08);
+  border-width:2px;background-color:var(--thumb-faint);
 }
 .side-scroll::-webkit-scrollbar-thumb:hover,.mlist::-webkit-scrollbar-thumb:hover,
-.gp-body::-webkit-scrollbar-thumb:hover,.mem-admin::-webkit-scrollbar-thumb:hover{background-color:rgba(255,255,255,.24)}
+.gp-body::-webkit-scrollbar-thumb:hover,.mem-admin::-webkit-scrollbar-thumb:hover{background-color:var(--thumb-hover)}
 /* code blocks scroll sideways: a hairline is enough there */
 .md-pre::-webkit-scrollbar{height:8px}
 .md-pre::-webkit-scrollbar-thumb{border-width:2px}
 @supports not selector(::-webkit-scrollbar){
-  *{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent}
-  .side-scroll,.mlist,.gp-body,.mem-admin{scrollbar-color:rgba(255,255,255,.1) transparent}
+  *{scrollbar-width:thin;scrollbar-color:var(--thumb) transparent}
+  .side-scroll,.mlist,.gp-body,.mem-admin{scrollbar-color:var(--thumb-faint) transparent}
 }
 svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
@@ -125,7 +193,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .err{font-size:12.5px;color:var(--red);line-height:1.5}
 .err:empty{display:none}
 .note{font-size:12px;color:var(--text-faint);line-height:1.55}
-.linkish{color:var(--teal);font:inherit;text-decoration:underline;text-underline-offset:2px}
+.linkish{color:var(--teal-text);font:inherit;text-decoration:underline;text-underline-offset:2px}
 .linkish.warn{color:var(--red)}
 
 .av{
@@ -179,12 +247,12 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .auth-card .seg button{font-size:13px;padding:8px 4px}
 .auth-foot{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;max-width:420px}
 .auth-foot a{color:var(--text-dim);font-size:13px;text-decoration:none;border-bottom:1px solid var(--line-hard)}
-.auth-foot a:hover{color:var(--teal);border-bottom-color:var(--teal-line)}
+.auth-foot a:hover{color:var(--teal-text);border-bottom-color:var(--teal-line)}
 
 /* ============================================================ APP SHELL */
 #app{height:100%;display:flex;position:relative}
 #boot{height:100%;display:flex;align-items:center;justify-content:center}
-.spin{width:22px;height:22px;border-radius:50%;border:2px solid var(--line-hard);border-top-color:var(--teal);animation:vd-spin .8s linear infinite}
+.spin{width:22px;height:22px;border-radius:50%;border:2px solid var(--line-hard);border-top-color:var(--teal-text);animation:vd-spin .8s linear infinite}
 
 /* --- server rail --- */
 .rail{
@@ -216,7 +284,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 }
 .rail-add{
   width:46px;height:46px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
-  background:var(--panel);color:var(--teal);font-size:24px;font-weight:300;transition:border-radius .18s,background .15s,color .15s;
+  background:var(--panel);color:var(--teal-text);font-size:24px;font-weight:300;transition:border-radius .18s,background .15s,color .15s;
 }
 .rail-add:hover{border-radius:15px;background:var(--teal);color:var(--teal-ink)}
 .rail-admin{color:var(--text-dim);text-decoration:none;margin-top:auto}
@@ -253,7 +321,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .ch .ico{width:18px;text-align:center;color:var(--text-faint);font:400 15px var(--mono);flex:none;display:flex;justify-content:center}
 .ch .ico svg.i{width:16px;height:16px}
 .ch.active .ico,.ch.live .ico{color:var(--text-dim)}
-.ch.live .ico{color:var(--teal)}
+.ch.live .ico{color:var(--teal-text)}
 .ch .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ch .edit{opacity:0;width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;color:var(--text-dim)}
 .ch .edit svg.i{width:14px;height:14px}
@@ -274,7 +342,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 /* voice connection panel + me panel at the foot of the sidebar */
 .vpanel{flex:none;border-top:1px solid var(--line);padding:10px 12px 8px;display:flex;flex-direction:column;gap:8px}
 .vp-top{display:flex;align-items:center;gap:10px}
-.vp-state{font:500 11px var(--mono);letter-spacing:.06em;color:var(--teal);display:flex;align-items:center;gap:7px}
+.vp-state{font:500 11px var(--mono);letter-spacing:.06em;color:var(--teal-text);display:flex;align-items:center;gap:7px}
 .vp-state::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--teal);animation:vd-pulse-sm 1.8s infinite}
 .vp-state.wait{color:var(--text-dim)}
 .vp-state.wait::before{background:var(--text-dim);animation:none}
@@ -290,7 +358,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .ic.on::after{content:"";position:absolute;width:22px;height:2px;background:var(--red);transform:rotate(-45deg);border-radius:1px}
 .ic.hang{color:var(--red)}
 .ic.hang:hover{background:var(--red-bg)}
-.ic.lit{color:var(--teal)}
+.ic.lit{color:var(--teal-text)}
 .me-panel{
   flex:none;height:58px;display:flex;align-items:center;gap:2px;padding:0 8px;background:var(--rail);
 }
@@ -314,7 +382,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .menu button:hover{background:var(--fill-2);color:var(--text)}
 .menu button.warn{color:var(--red)}
 .menu button.warn:hover{background:var(--red-bg)}
-.menu button.teal{color:var(--teal)}
+.menu button.teal{color:var(--teal-text)}
 .menu hr{border:0;border-top:1px solid var(--line-hard);margin:5px 4px}
 .menu svg.i{width:16px;height:16px}
 
@@ -332,7 +400,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .mh-meta .vr{width:1px;height:14px;background:var(--line-hard)}
 .onair{
   display:flex;align-items:center;gap:7px;padding:5px 10px;border-radius:var(--r-pill);
-  background:var(--teal-dim);color:var(--teal);font:500 11px var(--mono);letter-spacing:.08em;flex:none;
+  background:var(--teal-dim);color:var(--teal-text);font:500 11px var(--mono);letter-spacing:.08em;flex:none;
 }
 .onair .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);animation:vd-pulse-sm 1.8s infinite}
 .spacer{flex:1}
@@ -344,7 +412,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .mh-btn[aria-pressed="true"]{color:var(--text);background:var(--fill)}
 .vbar{
   display:none;flex:none;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--line);
-  background:var(--teal-dim);color:var(--teal);font-size:13px;cursor:pointer;
+  background:var(--teal-dim);color:var(--teal-text);font-size:13px;cursor:pointer;
 }
 .mbody{flex:1;display:flex;min-height:0;position:relative}
 
@@ -386,13 +454,13 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 }
 .day::before,.day::after{content:"";flex:1;height:1px;background:var(--line)}
 .new-line{display:flex;align-items:center;gap:10px;margin:6px 20px 0;font:600 10px var(--mono);letter-spacing:.08em;color:var(--red)}
-.new-line::before{content:"";flex:1;height:1px;background:rgba(255,138,138,.45)}
+.new-line::before{content:"";flex:1;height:1px;background:var(--red);opacity:.5}
 .m{
   display:flex;gap:14px;padding:3px 20px 3px 20px;position:relative;
   word-wrap:break-word;overflow-wrap:anywhere;
 }
 .m.head{margin-top:12px;padding-top:4px}
-.m:hover{background:rgba(255,255,255,.025)}
+.m:hover{background:var(--row-hover)}
 .m .gut{width:40px;flex:none;display:flex;justify-content:center}
 .m .gut .tm{
   font:400 9.5px var(--mono);color:var(--text-faint);opacity:0;padding-top:4px;white-space:nowrap;
@@ -401,10 +469,12 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .m .cnt{flex:1;min-width:0}
 .m .meta{display:flex;gap:8px;align-items:baseline;margin-bottom:1px}
 .m .who{font-weight:600;font-size:14.5px;color:var(--who,#d9d6ef)}
+/* names wear the person's colour: its light tone on dark, its deep tone on light */
+:root[data-theme="light"] .m .who,:root[data-theme="light"] .mrow .nm{color:var(--who-l,var(--text))}
 .m .when{font:400 10.5px var(--mono);color:var(--text-faint)}
 .m .body{color:var(--text-body);white-space:pre-wrap}
-.m .body a{color:var(--teal);text-decoration:none;border-bottom:1px solid rgba(95,216,200,.35)}
-.m .body a:hover{border-bottom-color:var(--teal)}
+.m .body a{color:var(--teal-text);text-decoration:none;border-bottom:1px solid var(--link-line)}
+.m .body a:hover{border-bottom-color:var(--teal-text)}
 /* message markup */
 .m .body strong{font-weight:600;color:var(--text)}
 .m .body s{color:var(--text-dim)}
@@ -421,15 +491,15 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .md-quote{margin:2px 0;padding:1px 0 1px 12px;border-left:3px solid var(--line-hard);color:var(--text-body)}
 .md-spoiler{border-radius:4px;padding:0 2px;transition:background .15s,color .15s}
 .md-spoiler:not(.shown){background:var(--bar-idle);color:transparent;cursor:pointer;user-select:none}
-.md-spoiler:not(.shown):hover{background:#5a554d}
+.md-spoiler:not(.shown):hover{background:var(--spoiler-hover)}
 .md-spoiler:not(.shown) *{color:transparent!important;background:transparent!important;border-color:transparent!important}
 .md-spoiler:focus-visible{outline:2px solid var(--teal-line);outline-offset:1px}
 .md-spoiler.shown{background:var(--fill)}
 /* @mentions: a chip in the text, and the whole message lit when it names you */
-.md-mention{border-radius:4px;padding:0 3px;background:var(--teal-dim);color:var(--teal);font-weight:500}
-.md-mention.me{background:rgba(243,201,105,.16);color:#f3c969}
-.m.mention{background:rgba(243,201,105,.06);box-shadow:inset 2px 0 0 #f3c969}
-.m.mention:hover{background:rgba(243,201,105,.09)}
+.md-mention{border-radius:4px;padding:0 3px;background:var(--teal-dim);color:var(--teal-text);font-weight:500}
+.md-mention.me{background:var(--amber-bg);color:var(--amber)}
+.m.mention{background:var(--amber-wash);box-shadow:inset 2px 0 0 var(--amber)}
+.m.mention:hover{background:var(--amber-wash-2)}
 /* red count of unread mentions, on a channel and on the den's rail icon */
 .ment{
   min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e5484d;color:#fff;
@@ -444,7 +514,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 /* settings → notifications */
 .notif-dev{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .notif-state{font:600 11px var(--mono);letter-spacing:.06em;color:var(--text-dim);padding:4px 8px;border-radius:6px;background:var(--fill)}
-.notif-state.on{color:var(--teal);background:var(--teal-dim)}
+.notif-state.on{color:var(--teal-text);background:var(--teal-dim)}
 .notif-den{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13.5px}
 .notif-den span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .notif-den .seg{flex:none;width:260px}
@@ -479,7 +549,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
   width:100%;resize:none;border-radius:var(--r-sm);background:var(--input);border:1px solid var(--teal-line);
   padding:8px 10px;outline:none;font-size:14.5px;line-height:1.5;min-height:40px;
 }
-.m-edit .note b{color:var(--teal);font-weight:500}
+.m-edit .note b{color:var(--teal-text);font-weight:500}
 
 /* link previews */
 .link-preview{
@@ -489,13 +559,13 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 }
 .link-preview:hover{background:var(--input)}
 .link-preview.loading{align-items:center;font:400 11px var(--mono);color:var(--text-faint)}
-.lp-spin{width:12px;height:12px;flex:none;border-radius:50%;border:2px solid var(--line-hard);border-top-color:var(--teal);animation:vd-spin .8s linear infinite}
+.lp-spin{width:12px;height:12px;flex:none;border-radius:50%;border:2px solid var(--line-hard);border-top-color:var(--teal-text);animation:vd-spin .8s linear infinite}
 .lp-thumb{width:64px;height:64px;flex:none;object-fit:cover;border-radius:var(--r-sm);background:var(--sunken)}
 .lp-text{min-width:0;display:flex;flex-direction:column;gap:3px}
 .lp-title{font-weight:600;font-size:13px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lp-desc{font-size:12px;color:var(--text-dim);line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .lp-host{font:400 10px var(--mono);color:var(--text-faint)}
-.link-preview.is-image{border-left-color:#f3d9bf;padding:0;border-width:1px}
+.link-preview.is-image{border-left-color:var(--owner);padding:0;border-width:1px}
 .link-preview.is-image .lp-thumb{width:100%;height:auto;max-height:260px;border-radius:var(--r-ctl)}
 
 /* attachments */
@@ -509,7 +579,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .at-audio{width:min(100%,360px)}
 .at-file{
   display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:var(--r-ctl);width:min(100%,360px);
-  background:var(--panel);border:1px solid var(--line-soft);border-left:2px solid #f3d9bf;
+  background:var(--panel);border:1px solid var(--line-soft);border-left:2px solid var(--owner);
   text-decoration:none;color:inherit;
 }
 .at-file:hover{background:var(--input)}
@@ -547,7 +617,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .chip .ci{font-size:22px;position:relative}
 .chip .x{
   position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:6px;background:rgba(14,13,12,.85);
-  color:var(--text);font-size:14px;display:flex;align-items:center;justify-content:center;z-index:1;
+  color:#f2efe8;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:1;
 }
 .chip .x:hover{color:var(--red)}
 .crow{display:flex;align-items:flex-end;gap:4px;padding:5px}
@@ -563,7 +633,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
   font:600 11px var(--mono);letter-spacing:.04em;color:var(--text-dim);
 }
 #gifBtn:hover,#gifBtn.open{color:var(--text);background:var(--fill)}
-#gifBtn.open{color:var(--teal)}
+#gifBtn.open{color:var(--teal-text)}
 
 /* GIF picker: floats over the list, just above the composer */
 .gifpick{
@@ -590,8 +660,8 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 #sendBtn:hover{filter:brightness(1.08)}
 #dropZone{
   position:absolute;inset:8px;border-radius:var(--r-card);border:2px dashed var(--teal-line);
-  background:rgba(19,18,16,.92);display:none;align-items:center;justify-content:center;
-  font:400 12px var(--mono);color:var(--teal);text-align:center;padding:20px;z-index:5;
+  background:var(--drop-bg);display:none;align-items:center;justify-content:center;
+  font:400 12px var(--mono);color:var(--teal-text);text-align:center;padding:20px;z-index:5;
 }
 #dropZone.on{display:flex}
 
@@ -607,7 +677,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .mrow.off{opacity:.45}
 .mrow .nm{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--who)}
 .mrow .role{font:500 9px var(--mono);letter-spacing:.06em;color:var(--text-faint);flex:none}
-.mrow .role.owner{color:#f3d9bf}
+.mrow .role.owner{color:var(--owner)}
 .mrow .av .pres{border-color:var(--panel-2)}
 
 /* ============================================================ VOICE VIEW */
@@ -664,9 +734,9 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .member-name{font-weight:600;font-size:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .member-name .you{color:var(--text-dim);font-weight:400}
 .member-status{font:400 11px var(--mono);color:var(--text-dim);margin-top:3px}
-.member.speaking .member-status{color:var(--teal)}
+.member.speaking .member-status{color:var(--teal-text)}
 .badge-speak{
-  position:absolute;top:14px;left:14px;font:500 10px var(--mono);color:var(--teal);
+  position:absolute;top:14px;left:14px;font:500 10px var(--mono);color:var(--teal-text);
   letter-spacing:.1em;display:none;align-items:center;gap:6px;
 }
 .badge-speak::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--teal)}
@@ -677,18 +747,18 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 }
 .member.is-muted .badge-mute{display:block}
 .invite{
-  border-radius:var(--r-card);border:1px dashed rgba(255,255,255,.14);
+  border-radius:var(--r-card);border:1px dashed var(--dash);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
   color:var(--text-dim);text-align:center;padding:16px;min-height:0;transition:border-color .15s,color .15s;
 }
 .invite:hover{border-color:var(--teal-line);color:var(--text)}
 .invite .plus{
-  width:56px;height:56px;border-radius:50%;border:1px dashed rgba(255,255,255,.2);
+  width:56px;height:56px;border-radius:50%;border:1px dashed var(--dash);
   display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:300;flex:none;
 }
 .invite .cap{font-size:14px}
 .invite.span-d{grid-column:1/-1}
-.invite .lnk{font:400 11px var(--mono);padding:6px 10px;border-radius:6px;background:rgba(255,255,255,.05);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.invite .lnk{font:400 11px var(--mono);padding:6px 10px;border-radius:6px;background:var(--fill);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* not connected: who is in there + a join button */
 .vjoin{
@@ -697,7 +767,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .vjoin .faces{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;max-width:420px}
 .vjoin .faces .av{width:64px;height:64px;font-size:22px}
 .vjoin .faces .empty{
-  width:64px;height:64px;border-radius:50%;border:1px dashed rgba(255,255,255,.2);
+  width:64px;height:64px;border-radius:50%;border:1px dashed var(--dash);
   display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:22px;
 }
 .vjoin h2{font-size:24px;font-weight:600;letter-spacing:-.01em}
@@ -709,7 +779,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .stage-bar{
   position:absolute;left:0;right:0;top:0;display:flex;align-items:center;
   padding:8px 12px 18px;background:linear-gradient(rgba(0,0,0,.7),transparent);
-  font:400 11px var(--mono);color:var(--text-body);pointer-events:none;
+  font:400 11px var(--mono);color:#dcd8cf;pointer-events:none;
 }
 #stageLabel{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .stagewrap.staging #memberList{flex:none;height:130px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));grid-auto-rows:130px}
@@ -730,7 +800,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .dockwrap>*{pointer-events:auto}
 .dock{
   display:flex;align-items:center;gap:6px;padding:8px;border-radius:var(--r-pill);
-  background:rgba(27,25,22,.92);border:1px solid var(--line-hard);box-shadow:var(--shadow);
+  background:var(--dock-bg);border:1px solid var(--line-hard);box-shadow:var(--shadow);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);max-width:calc(100% - 24px);flex-wrap:wrap;justify-content:center;
 }
 .dock-btn{
@@ -767,7 +837,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .pop-row>label{font-size:12px;color:var(--text-dim)}
 .pop-row .lvlrow{display:flex;align-items:center;gap:10px}
 .pop-row .lvlrow .lvl{flex:1}
-#micTest{font-size:12px;color:var(--teal);white-space:nowrap}
+#micTest{font-size:12px;color:var(--teal-text);white-space:nowrap}
 .sel{
   height:36px;border-radius:var(--r-sm);background:var(--sunken);border:1px solid var(--line-hard);
   display:flex;align-items:center;padding:0 12px;font-size:13px;position:relative;
@@ -803,7 +873,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 
 /* ============================================================ MODALS / TOASTS */
 .modal-back{
-  position:fixed;inset:0;z-index:80;background:rgba(10,9,8,.72);display:flex;align-items:center;justify-content:center;
+  position:fixed;inset:0;z-index:80;background:var(--scrim);display:flex;align-items:center;justify-content:center;
   padding:24px;overflow-y:auto;
 }
 .modal{
@@ -846,7 +916,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .crop:active{cursor:grabbing}
 .crop img{position:absolute;left:0;top:0;max-width:none;transform-origin:0 0;pointer-events:none}
 .crop-ring{position:absolute;inset:0;border-radius:50%;box-shadow:0 0 0 999px rgba(10,9,8,.62);outline:2px solid rgba(255,255,255,.45);outline-offset:-2px;pointer-events:none}
-.crop-zoom{display:block;width:min(280px,100%);margin:0 auto;accent-color:var(--teal)}
+.crop-zoom{display:block;width:min(280px,100%);margin:0 auto;accent-color:var(--teal-text)}
 .settings-sec + .settings-sec{border-top:1px solid var(--line-soft);padding-top:16px}
 
 #toasts{
@@ -883,7 +953,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
   .rail{left:0;transform:translateX(-320px)}
   .side{left:72px;width:min(280px,calc(100vw - 112px));transform:translateX(-400px);border-right:0}
   #app.nav-open .rail,#app.nav-open .side{transform:none}
-  .scrim{position:fixed;inset:0;background:rgba(10,9,8,.6);z-index:55;display:block;opacity:0;pointer-events:none;transition:opacity .2s}
+  .scrim{position:fixed;inset:0;background:var(--scrim);z-index:55;display:block;opacity:0;pointer-events:none;transition:opacity .2s}
   #app.nav-open .scrim,#app.members-open .scrim{opacity:1;pointer-events:auto}
   .mhead .mh-menu{display:flex}
   .mh-meta .onair span:last-child{display:none}
@@ -939,7 +1009,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
   #app.view-voice.chat-off .typing{display:none}
   #app.view-voice .chat-head{height:40px}
   #app.view-voice .composer{padding:8px 10px 10px}
-  #app.view-voice .sheet-grab{display:block;width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);margin:8px auto 0;flex:none;cursor:pointer}
+  #app.view-voice .sheet-grab{display:block;width:36px;height:4px;border-radius:2px;background:var(--grab);margin:8px auto 0;flex:none;cursor:pointer}
   .dockwrap{position:static;gap:0;align-items:stretch;flex:none}
   .dock{
     border-radius:0;border:0;border-top:1px solid var(--line);background:var(--panel);max-width:none;

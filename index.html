@@ -8,6 +8,17 @@
 <meta property="og:title" content="VoiceDen">
 <meta property="og:description" content="Arkadaşlarınla sesli sohbet: denler, kanallar, kalıcı mesajlar.">
 <meta name="theme-color" content="#131210">
+<script>
+  // theme before the first paint: the saved choice, else the system's
+  (function () {
+    var t = 'system';
+    try { t = localStorage.getItem('vd-theme') || 'system'; } catch (e) {}
+    var light = t === 'light' || (t === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches);
+    document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', light ? '#f6f4ef' : '#131210');
+  })();
+</script>
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
@@ -19,7 +30,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=10">
+<link rel="stylesheet" href="app.css?v=12">
 <script>
   // old quick-room invites (?r=room) still open the account-free room
   if (/[?&]r=/.test(location.search)) location.replace('classic.html' + location.search);
@@ -238,6 +249,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
 <script src="js/voice.js?v=3"></script>
-<script src="js/app.js?v=9"></script>
+<script src="js/app.js?v=11"></script>
 </body>
 </html>

@@ -12,6 +12,16 @@
   const SVG = 'http://www.w3.org/2000/svg';
   const LIVE_MS = 3000, FULL_MS = 30000, HIST = 60;
 
+  // same theme choice as the app (set in its settings); "system" follows the OS live
+  const sysLight = window.matchMedia('(prefers-color-scheme: light)');
+  function applyTheme() {
+    let t = 'system';
+    try { t = localStorage.getItem('vd-theme') || 'system'; } catch (e) {}
+    document.documentElement.dataset.theme = t === 'light' || (t === 'system' && sysLight.matches) ? 'light' : 'dark';
+  }
+  sysLight.addEventListener('change', applyTheme);
+  window.addEventListener('storage', e => { if (e.key === 'vd-theme') applyTheme(); });
+
   // ---------- formatting (Turkish: decimal comma, % before the number) ----------
   const nf0 = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 0 });
   const nf1 = new Intl.NumberFormat('tr-TR', { maximumFractionDigits: 1 });

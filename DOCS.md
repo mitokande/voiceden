@@ -91,6 +91,24 @@ server**: `voice_join {ch, peer}` claims a seat and returns everyone there.
 - Screen share: separate PeerJS call tagged `metadata.kind: 'screen'`; sharing
   is also reported to the server so the sidebar shows a CANLI badge.
 
+## Themes (light / dark)
+
+Settings → Görünüm: Sistem (default, follows the OS live) / Açık / Koyu, saved
+per browser in `localStorage['vd-theme']`. A tiny inline script in the
+`<head>` of `index.html` and `admin.html` sets `<html data-theme>` and the
+`theme-color` meta before the first paint, so there is no flash; `app.js` /
+`admin.js` re-apply on OS change and on changes from other tabs.
+
+- Every colour is a token in `:root` (dark) and `:root[data-theme="light"]`
+  in `app.css` (admin adds `--warn/--track/--grid`). New CSS should use tokens,
+  never raw `rgba(255,255,255,…)`.
+- `--teal` is the accent **fill**; anything that reads the accent as text uses
+  `--teal-text` (the fill is 1.6:1 on white, `--teal-text` is ~5.5:1).
+- Names use the person's tint: its light tone on dark (`--who`), its deep tone
+  on light (`--who-l`); every template that sets `--who` sets both.
+- Things that sit on a fixed dark backdrop in both themes (video stage label,
+  the × on image chips, the lightbox, the crop mask) keep fixed light colours.
+
 ## Notifications
 
 Three layers, one set of rules (`members.notify` per den: `all` / `mentions` / `none`):

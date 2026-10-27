@@ -24,6 +24,25 @@
   }
   function setPref(key, val) { try { localStorage.setItem(key, val); } catch (e) {} }
   const touch = window.matchMedia('(pointer:coarse)').matches;
+
+  // ---------- theme ----------
+  // 'system' follows the OS live; the <head> script already applied it once
+  const THEMES = [['system', 'Sistem'], ['light', 'Açık'], ['dark', 'Koyu']];
+  const sysLight = window.matchMedia('(prefers-color-scheme: light)');
+  function applyTheme(fade) {
+    const t = pref('vd-theme', 'system');
+    const light = t === 'light' || (t === 'system' && sysLight.matches);
+    const root = document.documentElement;
+    if (fade) {
+      root.classList.add('theme-fade');
+      setTimeout(() => root.classList.remove('theme-fade'), 320);
+    }
+    root.dataset.theme = light ? 'light' : 'dark';
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = light ? '#f6f4ef' : '#131210';
+  }
+  sysLight.addEventListener('change', () => { if (pref('vd-theme', 'system') === 'system') applyTheme(true); });
+  window.addEventListener('storage', e => { if (e.key === 'vd-theme') applyTheme(true); });   // other tabs
   const narrow = () => window.matchMedia('(max-width:760px)').matches;
 
   // a person's colour is theirs (chosen in settings), so card, avatar and name agree
@@ -659,7 +678,7 @@
     const weight = r => (r === 'owner' ? 0 : r === 'admin' ? 1 : 2);
     const sorted = s.members.slice().sort((a, b) => weight(a.role) - weight(b.role) || nameOf(a.id).localeCompare(nameOf(b.id), 'tr'));
     const on = sorted.filter(m => S.online.has(m.id) || m.id === S.me.id), off = sorted.filter(m => !(S.online.has(m.id) || m.id === S.me.id));
-    const row = (m, online) => `<div class="mrow${online ? '' : ' off'}" style="--who:${tintOf(m.id).fg}">${avHtml(m.id, '', online)}
+    const row = (m, online) => `<div class="mrow${online ? '' : ' off'}" style="--who:${tintOf(m.id).fg};--who-l:${tintOf(m.id).bg}">${avHtml(m.id, '', online)}
       <span class="nm">${esc(nameOf(m.id))}</span>${m.role !== 'member' ? `<span class="role ${m.role}">${m.role === 'owner' ? 'SAHİP' : 'YÖNETİCİ'}</span>` : ''}</div>`;
     let html = `<div class="cat">Çevrimiçi — ${on.length}</div>` + on.map(m => row(m, true)).join('');
     if (off.length) html += `<div class="cat">Çevrimdışı — ${off.length}</div>` + off.map(m => row(m, false)).join('');
@@ -891,7 +910,7 @@
     const canDel = mine || isMgr(s);
     html += `<div class="m${head ? ' head' : ''}${m.mn && m.mn.includes(S.me.id) ? ' mention' : ''}">
       <div class="gut">${head ? avHtml(m.uid, 'lg') : `<span class="tm">${hhmm(m.ts)}</span>`}</div>
-      <div class="cnt">${head ? `<div class="meta"><span class="who" style="--who:${tintOf(m.uid).fg}">${esc(nameOf(m.uid))}</span><span class="when">${esc(whenLabel(m.ts))}</span></div>` : ''}
+      <div class="cnt">${head ? `<div class="meta"><span class="who" style="--who:${tintOf(m.uid).fg};--who-l:${tintOf(m.uid).bg}">${esc(nameOf(m.uid))}</span><span class="when">${esc(whenLabel(m.ts))}</span></div>` : ''}
       ${m.body ? `<div class="body">${formatBody(m.body)}${m.ets ? '<span class="edited">(düzenlendi)</span>' : ''}</div>` : ''}</div>
       ${canDel ? `<div class="m-acts">${mine ? `<button data-act="edit" title="Düzenle" aria-label="Düzenle">${icon('edit')}</button>` : ''}
         <button class="warn" data-act="del" title="Sil (Shift: sormadan)" aria-label="Sil">${icon('trash')}</button></div>` : ''}
@@ -910,7 +929,7 @@
     const head = !prev || prev.uid !== p.uid || p.ts - prev.ts > 7 * 60000 || dayKey(prev.ts) !== dayKey(p.ts);
     wrap.innerHTML = `<div class="m${head ? ' head' : ''} pending${p.failed ? ' failed' : ''}">
       <div class="gut">${head ? avHtml(p.uid, 'lg') : `<span class="tm">${hhmm(p.ts)}</span>`}</div>
-      <div class="cnt">${head ? `<div class="meta"><span class="who" style="--who:${tintOf(p.uid).fg}">${esc(nameOf(p.uid))}</span><span class="when">gönderiliyor…</span></div>` : ''}
+      <div class="cnt">${head ? `<div class="meta"><span class="who" style="--who:${tintOf(p.uid).fg};--who-l:${tintOf(p.uid).bg}">${esc(nameOf(p.uid))}</span><span class="when">gönderiliyor…</span></div>` : ''}
         ${p.body ? `<div class="body">${formatBody(p.body)}</div>` : ''}
         ${p.files.length ? `<div class="attach">${p.files.map(f => `<div class="at-file"><span class="at-icon">📤</span><span class="at-meta"><span class="at-name">${esc(f.name)}</span><span class="at-size">${esc(fmtSize(f.size))}</span></span></div>`).join('')}
           ${p.failed ? '' : '<span class="at-bar"><i></i></span>'}</div>` : ''}
@@ -2012,7 +2031,7 @@
         if (owner) acts.push(`<button class="btn small" data-role="${x.id}" data-to="${x.role === 'admin' ? 'member' : 'admin'}">${x.role === 'admin' ? 'Yöneticiliği al' : 'Yönetici yap'}</button>`);
         if (owner || x.role === 'member') acts.push(`<button class="btn small danger" data-kick="${x.id}">Çıkar</button>`);
       }
-      return `<div class="mrow" style="--who:${tintOf(x.id).fg}">${avHtml(x.id)}<span class="nm">${esc(u.name || '')} <span class="note">@${esc(u.username || '')}</span></span>
+      return `<div class="mrow" style="--who:${tintOf(x.id).fg};--who-l:${tintOf(x.id).bg}">${avHtml(x.id)}<span class="nm">${esc(u.name || '')} <span class="note">@${esc(u.username || '')}</span></span>
         ${x.role !== 'member' ? `<span class="role ${x.role}">${x.role === 'owner' ? 'SAHİP' : 'YÖNETİCİ'}</span>` : ''}${acts.join('')}</div>`;
     }).join('');
     const st = svTint(sid);
@@ -2168,7 +2187,7 @@
   function openSettings(tab) {
     let tint = S.me.tint;
     const m = openModal(`<h3>Ayarlar</h3>
-      <div class="seg tabs" id="stTabs"><button data-tab="acc">Hesap</button><button data-tab="notif">Bildirimler</button><button data-tab="audio">Ses</button></div>
+      <div class="seg tabs" id="stTabs"><button data-tab="acc">Hesap</button><button data-tab="notif">Bildirimler</button><button data-tab="audio">Ses</button><button data-tab="look">Görünüm</button></div>
       <div id="tabAcc">
         <div class="settings-sec"><div class="pic-edit">
           <span class="av xl" style="--av-bg:${tintOf(S.me.id).bg};--av-fg:${tintOf(S.me.id).fg}">${avInner(S.me.id)}</span>
@@ -2194,6 +2213,13 @@
         <div class="settings-sec"><div><button class="btn danger small" id="usOut">${icon('out')} Çıkış yap</button></div></div>
       </div>
       <div id="tabNotif" hidden></div>
+      <div id="tabLook" hidden>
+        <div class="settings-sec">
+          <div class="k">Tema</div>
+          <div class="seg theme-seg" id="themeSeg">${THEMES.map(([k, t]) => `<button data-theme-pick="${k}" aria-pressed="${pref('vd-theme', 'system') === k}">${t}</button>`).join('')}</div>
+          <div class="note">Sistem, cihazının açık/koyu ayarını izler ve o değişince kendiliğinden değişir. Seçim bu tarayıcıda saklanır.</div>
+        </div>
+      </div>
       <div id="tabAudio" hidden></div>
       <div class="acts"><button class="btn" data-close>Kapat</button></div>`);
     const setTab = t => {
@@ -2201,6 +2227,7 @@
       m.querySelector('#tabAcc').hidden = t !== 'acc';
       m.querySelector('#tabAudio').hidden = t !== 'audio';
       m.querySelector('#tabNotif').hidden = t !== 'notif';
+      m.querySelector('#tabLook').hidden = t !== 'look';
       if (t === 'notif') renderNotifTab(m.querySelector('#tabNotif'));
       if (t === 'audio') VD.voice.mountPanel(m.querySelector('#tabAudio'));
       else VD.voice.closePanel();
@@ -2259,7 +2286,14 @@
       try { await api('logout', {}); } catch (e) {}
       location.href = location.pathname;
     });
-    setTab(['audio', 'notif'].includes(tab) ? tab : 'acc');
+    m.querySelector('#themeSeg').addEventListener('click', e => {
+      const b = e.target.closest('[data-theme-pick]');
+      if (!b) return;
+      setPref('vd-theme', b.dataset.themePick);
+      m.querySelectorAll('[data-theme-pick]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      applyTheme(true);
+    });
+    setTab(['audio', 'notif', 'look'].includes(tab) ? tab : 'acc');
   }
 
   // ============================================================ GO
