@@ -32,10 +32,16 @@ function fail(string $error, int $code = 400, array $extra = []): never {
 
 /* ---------- database ---------- */
 
+function cfg(string $key, mixed $default = null): mixed {
+    static $c = null;
+    $c ??= require __DIR__ . '/config.php';
+    return $c[$key] ?? $default;
+}
+
 function db(): PDO {
     static $pdo = null;
     if ($pdo) return $pdo;
-    $c = (require __DIR__ . '/config.php')['db'];
+    $c = cfg('db');
     $pdo = new PDO(
         "mysql:host={$c['host']};dbname={$c['name']};charset=utf8mb4",
         $c['user'], $c['pass'],
@@ -208,11 +214,12 @@ function pack_messages(array $rows): array {
     if (!$rows) return [];
     $ids = array_map(fn($r) => (int) $r['id'], $rows);
     $att = [];
-    foreach (q('SELECT id, message_id, name, mime, size, width, height FROM attachments
+    foreach (q('SELECT id, message_id, name, mime, size, width, height, gif FROM attachments
                 WHERE message_id IN (' . marks($ids) . ') ORDER BY id', $ids) as $a) {
         $att[(int) $a['message_id']][] = [
             'id' => (int) $a['id'], 'name' => $a['name'], 'mime' => $a['mime'], 'size' => (int) $a['size'],
             'w' => $a['width'] === null ? null : (int) $a['width'], 'h' => $a['height'] === null ? null : (int) $a['height'],
+            'gif' => (bool) $a['gif'],
         ];
     }
     return array_map(fn($r) => [

@@ -12,6 +12,7 @@
  */
 declare(strict_types=1);
 require __DIR__ . '/server/lib.php';
+require __DIR__ . '/server/gifs.php';
 
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
@@ -22,7 +23,7 @@ set_exception_handler(function (Throwable $e) {
 });
 
 const ROUTES = [
-    'GET'  => ['boot', 'messages', 'file', 'invite'],
+    'GET'  => ['boot', 'messages', 'file', 'invite', 'gifs'],
     'POST' => ['register', 'login', 'logout', 'profile', 'password', 'poll',
                'server_create', 'server_update', 'server_delete', 'server_leave', 'invite_reset', 'invite_accept',
                'channel_create', 'channel_update', 'channel_delete', 'member_kick', 'member_role',
@@ -461,7 +462,9 @@ function api_send(): void {
     $text = clean_body($b['body'] ?? '');
     if (mb_strlen($text) > MAX_BODY) fail('too_long');
     $files = incoming_files();
-    if ($text === '' && !$files) fail('empty');
+    $gif = substr(trim((string) ($b['gif'] ?? '')), 0, 160);   // a KLIPY slug from the picker
+    if ($gif !== '' && $files) fail('too_many_files');
+    if ($text === '' && !$files && $gif === '') fail('empty');
     if ((int) qv('SELECT COUNT(*) FROM messages WHERE user_id = ? AND created_at > NOW(3) - INTERVAL 10 SECOND', [$u['id']]) >= 10) {
         fail('slow_down', 429);
     }
@@ -481,8 +484,9 @@ function api_send(): void {
             $dim = @getimagesize(FILES_DIR . '/' . $rel);
             if ($dim) { $w = min(65535, (int) $dim[0]); $h = min(65535, (int) $dim[1]); }
         }
-        $stored[] = ['path' => $rel, 'name' => $f['name'], 'size' => $f['size'], 'mime' => $mime, 'w' => $w, 'h' => $h];
+        $stored[] = ['path' => $rel, 'name' => $f['name'], 'size' => $f['size'], 'mime' => $mime, 'w' => $w, 'h' => $h, 'gif' => 0];
     }
+    if ($gif !== '') $stored[] = store_gif($gif, $u);
 
     try {
         db()->beginTransaction();
@@ -490,8 +494,8 @@ function api_send(): void {
           [$c['id'], $c['server_id'], $u['id'], $text]);
         $mid = (int) db()->lastInsertId();
         foreach ($stored as $s) {
-            q('INSERT INTO attachments (message_id, name, mime, size, width, height, path) VALUES (?, ?, ?, ?, ?, ?, ?)',
-              [$mid, $s['name'], $s['mime'], $s['size'], $s['w'], $s['h'], $s['path']]);
+            q('INSERT INTO attachments (message_id, name, mime, size, width, height, path, gif) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+              [$mid, $s['name'], $s['mime'], $s['size'], $s['w'], $s['h'], $s['path'], $s['gif']]);
         }
         q('UPDATE channels SET last_msg_id = GREATEST(last_msg_id, ?) WHERE id = ?', [$mid, $c['id']]);
         q('INSERT INTO channel_reads (user_id, channel_id, last_read_id) VALUES (?, ?, ?)

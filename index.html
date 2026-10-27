@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=3">
+<link rel="stylesheet" href="app.css?v=4">
 <script>
   // old quick-room invites (?r=room) still open the account-free room
   if (/[?&]r=/.test(location.search)) location.replace('classic.html' + location.search);
@@ -146,12 +146,18 @@
         <div class="chat-head"><span>SOHBET</span><button class="mh-btn" id="chatClose" aria-label="Sohbeti kapat">&#8250;</button></div>
         <div id="messages"></div>
         <div class="composer" id="composer">
+          <div class="gifpick" id="gifPick" hidden>
+            <div class="gp-head"><div class="in"><input id="gifQ" maxlength="80" autocomplete="off" placeholder="KLIPY'de ara" aria-label="GIF ara"></div></div>
+            <div class="gp-body" id="gifBody"><div class="gp-cols" id="gifCols"></div><div class="gp-note" id="gifNote"></div></div>
+            <div class="gp-foot">Powered by KLIPY</div>
+          </div>
           <div class="typing" id="typing"></div>
           <div class="cbox">
             <div class="staged" id="staged"></div>
             <div class="crow">
               <input type="file" id="fileInput" multiple hidden>
               <button id="attachBtn" title="Dosya ekle (en fazla 25 MB)" aria-label="Dosya ekle"><svg class="i"><use href="#i-clip"/></svg></button>
+              <button id="gifBtn" title="GIF ara" aria-label="GIF ara" aria-expanded="false">GIF</button>
               <textarea id="chatInput" rows="1" maxlength="2000" placeholder="Mesaj yaz…" autocomplete="off"></textarea>
               <button id="sendBtn" title="Gönder" aria-label="Gönder">&#8593;</button>
             </div>
@@ -222,6 +228,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
 <script src="js/voice.js?v=2"></script>
-<script src="js/app.js?v=2"></script>
+<script src="js/app.js?v=3"></script>
 </body>
 </html>

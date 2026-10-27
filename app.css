@@ -413,6 +413,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
   cursor:zoom-in;background:var(--panel);object-fit:contain;
 }
 .at-video{max-width:min(100%,480px);max-height:360px;border-radius:var(--r-ctl);display:block;background:#000}
+.at-gif{display:block;max-width:100%;border-radius:var(--r-ctl);background:var(--panel)}
 .at-audio{width:min(100%,360px)}
 .at-file{
   display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:var(--r-ctl);width:min(100%,360px);
@@ -465,6 +466,31 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 #chatInput::placeholder{color:var(--text-faint)}
 #attachBtn{width:36px;height:36px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;color:var(--text-dim);flex:none}
 #attachBtn:hover{color:var(--text);background:var(--fill)}
+#gifBtn{
+  height:36px;padding:0 8px;border-radius:var(--r-sm);flex:none;display:flex;align-items:center;
+  font:600 11px var(--mono);letter-spacing:.04em;color:var(--text-dim);
+}
+#gifBtn:hover,#gifBtn.open{color:var(--text);background:var(--fill)}
+#gifBtn.open{color:var(--teal)}
+
+/* GIF picker: floats over the list, just above the composer */
+.gifpick{
+  position:absolute;left:20px;bottom:calc(100% + 2px);z-index:20;width:min(440px,calc(100% - 40px));height:min(440px,60vh);
+  border-radius:var(--r-pop);background:var(--input);border:1px solid var(--line-hard);box-shadow:var(--shadow);
+  display:flex;flex-direction:column;overflow:hidden;animation:vd-in .12s ease-out;
+}
+.gp-head{padding:10px;border-bottom:1px solid var(--line-soft);flex:none}
+.gp-head .in{height:38px}
+.gp-body{flex:1;min-height:0;overflow-y:auto;padding:8px;scrollbar-width:thin}
+.gp-cols{display:flex;gap:6px;align-items:flex-start}
+.gp-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.gp-item{display:block;width:100%;border-radius:8px;overflow:hidden;background:var(--sunken);padding:0}
+.gp-item img{display:block;width:100%;height:auto}
+.gp-item:hover,.gp-item:focus-visible{outline:2px solid var(--teal);outline-offset:-2px}
+.gp-note{padding:14px 8px;text-align:center;font:400 11px var(--mono);color:var(--text-faint);line-height:1.6}
+.gp-note:empty{display:none}
+.gp-foot{flex:none;padding:6px 12px;border-top:1px solid var(--line-soft);font:600 9.5px var(--mono);letter-spacing:.08em;color:var(--text-faint);text-align:right}
+#app.view-voice .gifpick{left:14px;width:calc(100% - 28px)}
 #sendBtn{
   width:36px;height:36px;flex:none;border-radius:var(--r-sm);background:var(--teal);color:var(--teal-ink);
   display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;
@@ -772,6 +798,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
   .m-acts{right:8px}
   .day,.new-line{margin-left:12px;margin-right:12px}
   .composer{padding:0 10px calc(10px + env(safe-area-inset-bottom))}
+  .gifpick,#app.view-voice .gifpick{left:10px;width:calc(100% - 20px);height:min(420px,55vh)}
   .msgs-top{padding:20px 12px 10px}
   .cards{width:100%}
   .lcard{width:100%;max-width:420px}

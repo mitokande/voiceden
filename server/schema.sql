@@ -137,3 +137,24 @@ CREATE TABLE IF NOT EXISTS throttle (
   at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY k_key (k, at)
 ) ENGINE=InnoDB;
+
+-- GIF search (KLIPY). Sent GIFs are downloaded and stored like uploads, so a
+-- provider shutting down (Tenor, 2026-06-30) never breaks old messages.
+ALTER TABLE attachments ADD COLUMN IF NOT EXISTS gif TINYINT(1) NOT NULL DEFAULT 0;
+
+-- search/trending pages, so repeated searches do not spend API quota
+CREATE TABLE IF NOT EXISTS gif_pages (
+  k     BINARY(20) PRIMARY KEY,          -- sha1 of query|page|locale
+  data  MEDIUMTEXT NOT NULL,
+  at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY k_at (at)
+) ENGINE=InnoDB;
+
+-- every GIF a search has shown, so sending one needs no second lookup and
+-- the client never gets to name the URL the server downloads
+CREATE TABLE IF NOT EXISTS gif_items (
+  slug  VARCHAR(160) PRIMARY KEY,
+  data  TEXT NOT NULL,
+  at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY k_at (at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

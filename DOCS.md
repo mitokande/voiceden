@@ -19,8 +19,9 @@ The old account-free single-file room still lives at `classic.html`; any
 | `rnnoise-worklet.js` | RNNoise denoiser worklet (~1.9 MB, loaded only when "Gelişmiş" is picked) |
 | `api.php` | JSON API, `api.php?a=<action>` |
 | `server/lib.php` | DB, sessions, permissions, wire formats |
+| `server/gifs.php` | GIF search through KLIPY (`gifs` endpoint, `store_gif` for sending) |
 | `server/schema.sql` | idempotent schema (re-runnable) |
-| `server/config.php` | DB credentials — **gitignored**; copy `config.example.php` |
+| `server/config.php` | DB credentials and `klipy_key` — **gitignored**; copy `config.example.php` |
 | `data/files/` | uploaded attachments, random names, no extensions — **gitignored**, `.htaccess`-denied |
 | `og.php` | link-preview resolver (unchanged from classic; SSRF-hardened) |
 | `.htaccess` | raises PHP upload limits to 26M/27M (LiteSpeed honours `php_value`; `.user.ini` did not work) |
@@ -85,6 +86,35 @@ server**: `voice_join {ch, peer}` claims a seat and returns everyone there.
 - Screen share: separate PeerJS call tagged `metadata.kind: 'screen'`; sharing
   is also reported to the server so the sidebar shows a CANLI badge.
 
+## GIFs (KLIPY)
+
+Tenor's API shut down on 2026-06-30, so GIF search uses KLIPY
+(`https://api.klipy.com/api/v1/{key}/gifs/trending|search`). The key goes in
+`server/config.php` as `klipy_key` (free test keys at partner.klipy.com, 100
+calls/min). With an empty key the GIF button opens and says search is not set up yet.
+
+- The browser only calls `api.php?a=gifs&q=&page=`. Pages are cached in
+  `gif_pages` (trending 15 min, searches 6 h) and only misses count toward the
+  per-user brake (40/min). KLIPY gets a hashed `customer_id`, never our user id.
+- Every GIF a search shows is remembered in `gif_items` with the URL to
+  download. Sending posts only `{gif: slug}`; the server takes the URL from
+  that table (or KLIPY's item endpoint), so the client never names what the
+  server downloads. Media must be https on `klipy.com` / `*.klipy.com` (or the
+  configured API host), redirects are followed by hand with the host
+  re-checked, 8 MB cap, and the bytes must sniff as mp4/webm/gif/webp.
+- The mp4 is stored in `data/files` as an attachment with `gif = 1`, then a
+  share is registered with KLIPY (best effort). Chat renders it as a silent
+  looping `<video>` that only plays while on screen (IntersectionObserver);
+  with reduced motion it gets controls instead. Old GIFs therefore keep working
+  if KLIPY ever goes the way of Tenor.
+- Ad items in KLIPY results (`type: "ad"`) are dropped. Thumbnails in the
+  picker load straight from KLIPY's CDN; attribution is the "KLIPY'de ara"
+  placeholder and a "Powered by KLIPY" footer.
+- Testing without a real key: set `'klipy_key' => 'TESTKEY'` and
+  `'klipy_base' => 'http://127.0.0.1:8787/api/v1'` and run a small mock that
+  serves `gifs/trending`, `gifs/search` and the media files (the media host may
+  equal the API host). Remove both lines afterwards.
+
 ## Security notes
 
 - Every POST needs `X-VoiceDen: 1` (CSRF), cookie is HttpOnly/Secure/SameSite=Lax, path `/voiceden/`.
@@ -110,6 +140,7 @@ Test sign-ups count against the register throttle (20 per IP per hour): if a run
 
 ## Roadmap (not built yet)
 
+0. ~~GIF search~~ — done (KLIPY), waiting for the user's API key.
 1. **DMs + friends** — a "home" entry on the rail; DM = a server-less channel with two members.
 2. **@mentions + notifications** — mention parsing, red badge counts, desktop
    notifications / sound when the tab is hidden.

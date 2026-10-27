@@ -83,6 +83,10 @@
     bad_password: 'Mevcut şifre yanlış.',
     too_many: 'Sınıra ulaştın.',
     upload_failed: 'Dosya yüklenemedi.',
+    gifs_off: 'GIF araması henüz ayarlanmadı.',
+    gifs_down: 'GIF servisine şu an ulaşılamıyor.',
+    no_gif: 'Bu GIF artık bulunamadı.',
+    gif_fetch: 'GIF indirilemedi — biraz sonra tekrar dene.',
     server: 'Sunucuda bir hata oldu. Biraz sonra tekrar dene.',
   };
   const apiErr = (code, status) => Object.assign(new Error(code), { code, status: status || 0 });
@@ -448,6 +452,7 @@
       chatInput.value = drafts.get(cid) || '';
       autosize();
       clearStaged();
+      closeGifs();
       const c = S.chans.get(cid);
       if (c && c.kind === 'voice') app.classList.toggle('chat-off', narrow() ? true : pref('vd-vchat', '1') === '0');
     }
@@ -734,12 +739,38 @@
   function followSize(el, evt) {
     el.addEventListener(evt, () => { if (el.dataset.stick === '1') scrollBottom(); }, { once: true });
   }
+  // GIFs only play while on screen: a long history of them would otherwise all run at once
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const gifObs = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+    for (const e of entries) {
+      if (e.isIntersecting) e.target.play().catch(() => {});
+      else e.target.pause();
+    }
+  }, { root: messagesEl }) : null;
+
   function attachHtmlEls(atts) {
     const wrap = document.createElement('div');
     wrap.className = 'attach';
     for (const a of atts) {
       const kind = a.mime.split('/')[0];
-      if (kind === 'image') {
+      if (a.gif && kind === 'video') {
+        // a GIF is an mp4 that behaves like a picture: silent, looping, no controls
+        const v = document.createElement('video');
+        v.className = 'at-gif';
+        v.muted = true; v.loop = true; v.playsInline = true; v.preload = 'metadata';
+        v.setAttribute('aria-label', a.name);
+        v.title = a.name.replace(/\.\w+$/, '');
+        if (a.w && a.h) {
+          const w = Math.min(a.w, 360, Math.round(300 * a.w / a.h));
+          v.style.width = w + 'px';
+          v.style.aspectRatio = a.w + ' / ' + a.h;
+        }
+        v.src = fileUrl(a);
+        if (calm) v.controls = true;
+        else if (gifObs) gifObs.observe(v);
+        else v.autoplay = true;
+        wrap.appendChild(v);
+      } else if (kind === 'image') {
         const img = document.createElement('img');
         img.className = 'at-image';
         img.alt = a.name; img.title = a.name + ' · ' + fmtSize(a.size);
@@ -810,6 +841,7 @@
         ${p.body ? `<div class="body">${linkify(p.body)}</div>` : ''}
         ${p.files.length ? `<div class="attach">${p.files.map(f => `<div class="at-file"><span class="at-icon">📤</span><span class="at-meta"><span class="at-name">${esc(f.name)}</span><span class="at-size">${esc(fmtSize(f.size))}</span></span></div>`).join('')}
           ${p.failed ? '' : '<span class="at-bar"><i></i></span>'}</div>` : ''}
+        ${p.gif ? `<div class="attach"><img class="at-gif" alt="" src="${esc(p.gif.thumb)}" style="width:${Math.min(p.gif.w || 240, 360, Math.round(300 * (p.gif.w || 4) / (p.gif.h || 3)))}px;aspect-ratio:${p.gif.w || 4} / ${p.gif.h || 3}"></div>` : ''}
         ${p.failed ? `<div class="fail">${esc(p.failed)}<button data-retry>tekrar dene</button><button data-drop>vazgeç</button></div>` : ''}
       </div></div>`;
     return wrap;
@@ -1136,6 +1168,8 @@
           const bar = messagesEl.querySelector(`.mw.pending[data-nonce="${p.nonce}"] .at-bar i`);
           if (bar) bar.style.width = Math.round(frac * 100) + '%';
         });
+      } else if (p.gif) {
+        r = await api('send', { ch: p.ch, body: '', gif: p.gif.slug });
       } else {
         r = await api('send', { ch: p.ch, body: p.body });
       }
@@ -1206,6 +1240,94 @@
     dragDepth = 0;
     $('dropZone').classList.remove('on');
     stageFiles(e.dataTransfer.files);
+  });
+
+  // ---------- GIF picker (KLIPY through api.php?a=gifs) ----------
+  const gifPick = $('gifPick'), gifBtn = $('gifBtn'), gifQ = $('gifQ'), gifBody = $('gifBody');
+  const gifCols = $('gifCols'), gifNote = $('gifNote');
+  const G = { q: null, page: 0, more: true, loading: false, seq: 0, heights: [0, 0], timer: 0 };
+
+  function openGifs() {
+    if (!S.cid) return;
+    gifPick.hidden = false;
+    gifBtn.classList.add('open');
+    gifBtn.setAttribute('aria-expanded', 'true');
+    if (G.q === null || G.failed) loadGifs(gifQ.value.trim(), false);
+    if (!touch) gifQ.focus();
+  }
+  function closeGifs() {
+    if (gifPick.hidden) return;
+    gifPick.hidden = true;
+    gifBtn.classList.remove('open');
+    gifBtn.setAttribute('aria-expanded', 'false');
+  }
+  async function loadGifs(q, next) {
+    if (!next) {
+      G.q = q; G.page = 0; G.more = true; G.loading = false; G.failed = false;
+      G.heights = [0, 0];
+      gifCols.innerHTML = '<div class="gp-col"></div><div class="gp-col"></div>';
+      gifBody.scrollTop = 0;
+    }
+    if (G.loading || !G.more) return;
+    const seq = ++G.seq;
+    G.loading = true;
+    gifNote.innerHTML = '<div class="lp-spin" style="margin:0 auto"></div>';
+    try {
+      const r = await api('gifs', { q: G.q, page: G.page + 1 }, { get: true });
+      if (seq !== G.seq) return;
+      G.page++;
+      G.more = r.more && r.gifs.length > 0;
+      const cols = gifCols.children;
+      for (const g of r.gifs) {
+        // masonry by hand: each tile goes to the shorter column
+        const i = G.heights[0] <= G.heights[1] ? 0 : 1;
+        const ratio = g.w && g.h ? g.h / g.w : 1;
+        G.heights[i] += ratio;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'gp-item';
+        b.title = g.title || 'GIF';
+        b.innerHTML = `<img alt="${esc(g.title || 'GIF')}" loading="lazy" referrerpolicy="no-referrer" src="${esc(g.thumb)}" style="aspect-ratio:${g.w || 1} / ${g.h || 1}">`;
+        b.addEventListener('click', () => sendGif(g));
+        cols[i].appendChild(b);
+      }
+      gifNote.textContent = G.page === 1 && !r.gifs.length ? 'Bununla ilgili GIF bulunamadı.' : '';
+    } catch (e) {
+      if (seq !== G.seq) return;
+      G.more = false;
+      G.failed = true;
+      gifNote.textContent = e.code === 'gifs_off' ? 'GIF araması henüz ayarlanmadı (KLIPY anahtarı bekleniyor).'
+        : e.code === 'gifs_down' ? 'GIF servisine şu an ulaşılamıyor.' : errText(e);
+    } finally {
+      if (seq === G.seq) G.loading = false;
+    }
+  }
+  function sendGif(g) {
+    const c = S.chans.get(S.cid);
+    if (!c) return;
+    closeGifs();
+    const st = store(c.id);
+    const p = { nonce: ++nonceSeq, ch: c.id, uid: S.me.id, body: '', ts: Date.now(), files: [], fileObjs: [], gif: g, pending: true };
+    st.pending.push(p);
+    const prev = st.pending.length > 1 ? st.pending[st.pending.length - 2] : st.msgs[st.msgs.length - 1];
+    messagesEl.appendChild(pendingEl(p, prev || null));
+    scrollBottom();
+    doSend(p);
+    if (!touch) chatInput.focus();
+  }
+  gifBtn.addEventListener('click', e => { e.stopPropagation(); if (gifPick.hidden) openGifs(); else closeGifs(); });
+  gifQ.addEventListener('input', () => {
+    clearTimeout(G.timer);
+    G.timer = setTimeout(() => loadGifs(gifQ.value.trim(), false), 380);
+  });
+  gifQ.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); clearTimeout(G.timer); loadGifs(gifQ.value.trim(), false); }
+  });
+  gifBody.addEventListener('scroll', () => {
+    if (gifBody.scrollTop + gifBody.clientHeight > gifBody.scrollHeight - 240) loadGifs(G.q, true);
+  }, { passive: true });
+  document.addEventListener('click', e => {
+    if (!gifPick.hidden && !gifPick.contains(e.target) && e.target !== gifBtn) closeGifs();
   });
 
   function openLightbox(url, alt) {
@@ -1371,6 +1493,7 @@
 
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
+    if (!gifPick.hidden) { closeGifs(); chatInput.focus(); return; }
     if ($('lightbox').classList.contains('on')) { $('lightbox').classList.remove('on'); return; }
     if (!modalBack.hidden) { closeModal(); return; }
     if (menuEl) { closeMenu(); return; }
