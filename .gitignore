@@ -1,0 +1,3 @@
+server/config.php
+data/
+.og-cache/*.json

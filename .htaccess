@@ -1,0 +1,4 @@
+<IfModule Litespeed>
+php_value upload_max_filesize 26M
+php_value post_max_size 27M
+</IfModule>
