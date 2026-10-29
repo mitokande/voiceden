@@ -173,6 +173,8 @@
     typingPing: false,
   };
   const isMgr = s => s && (s.role === 'owner' || s.role === 'admin');
+  // a private channel is seen by its den's owner and the people in c.allow
+  const canSee = (c, s, uid) => !c.priv || uid === s.owner || c.allow.includes(uid);
   function store(cid) {
     let st = S.stores.get(cid);
     if (!st) {
@@ -429,7 +431,7 @@
       if (!S.servers.has(S.sid)) go(S.order[0] || 0, 0);
       else if (!S.chans.has(S.cid)) go(S.sid, 0);
       const vch = VD.voice.channel;
-      if (vch && !S.chans.has(vch)) VD.voice.leave('Bu ses kanalı artık yok.');
+      if (vch && !S.chans.has(vch)) VD.voice.leave('Bu ses kanalına artık erişimin yok.');
       scheduleUi();
     }).catch(() => {}).finally(() => { rebooting = null; });
     return rebooting;
@@ -549,9 +551,9 @@
       const cat = (title, kind) => `<div class="cat"><span>${title}</span>${mgr ? `<button data-add="${kind}" title="Kanal ekle" aria-label="Kanal ekle">+</button>` : ''}</div>`;
       const row = c => {
         const cls = 'ch' + (c.id === S.cid ? ' active' : '') + (c.kind === 'text' && unreadIn(c) && c.id !== S.cid ? ' unread' : '') +
-          (c.kind === 'voice' && VD.voice.channel === c.id ? ' live' : '');
+          (c.kind === 'voice' && VD.voice.channel === c.id ? ' live' : '') + (c.priv ? ' priv' : '');
         return `<button class="${cls}" data-ch="${c.id}"><span class="ico">${c.kind === 'text' ? '#' : icon('vol')}</span>` +
-          `<span class="nm">${esc(c.name)}</span>` + (c.ment && c.id !== S.cid ? `<span class="ment">${c.ment > 99 ? '99+' : c.ment}</span>` : '') +
+          `<span class="nm">${esc(c.name)}</span>` + (c.priv ? `<span class="lk" title="Gizli kanal">${icon('lock')}</span>` : '') + (c.ment && c.id !== S.cid ? `<span class="ment">${c.ment > 99 ? '99+' : c.ment}</span>` : '') +
           (mgr ? `<span class="edit" data-edit="${c.id}" role="button" title="Kanalı düzenle">${icon('gear')}</span>` : '') + '</button>';
       };
       html += cat('Metin kanalları', 'text');
@@ -632,6 +634,7 @@
       ico.innerHTML = icon('vol');
       name.textContent = c.name;
     }
+    $('mhLock').hidden = !(c && c.priv);
     const here = c && c.kind === 'voice' && VD.voice.channel === c.id;
     $('mhMeta').hidden = !here;
     if (here) $('vCount').textContent = VD.voice.count + ' kişi';
@@ -651,6 +654,7 @@
     app.classList.toggle('view-voice', voice);
     app.classList.toggle('connected', here);
     welcomeEl.hidden = !!s;
+    $('bare').hidden = !s || !!c;          // every channel here is private, none of them mine
     chatPanel.hidden = !c;
     if (!s && !welcomeEl.firstChild) renderWelcome();
     if (voice && !here) {
@@ -676,7 +680,9 @@
     memberPanel.hidden = !s;                // no den, nobody to list
     if (!s) { memberPanel.innerHTML = ''; membersKey = ''; return; }
     const weight = r => (r === 'owner' ? 0 : r === 'admin' ? 1 : 2);
-    const sorted = s.members.slice().sort((a, b) => weight(a.role) - weight(b.role) || nameOf(a.id).localeCompare(nameOf(b.id), 'tr'));
+    const c = S.chans.get(S.cid);
+    const sorted = s.members.filter(m => !c || canSee(c, s, m.id))
+      .sort((a, b) => weight(a.role) - weight(b.role) || nameOf(a.id).localeCompare(nameOf(b.id), 'tr'));
     const on = sorted.filter(m => S.online.has(m.id) || m.id === S.me.id), off = sorted.filter(m => !(S.online.has(m.id) || m.id === S.me.id));
     const row = (m, online) => `<div class="mrow${online ? '' : ' off'}" style="--who:${tintOf(m.id).fg};--who-l:${tintOf(m.id).bg}">${avHtml(m.id, '', online)}
       <span class="nm">${esc(nameOf(m.id))}</span>${m.role !== 'member' ? `<span class="role ${m.role}">${m.role === 'owner' ? 'SAHİP' : 'YÖNETİCİ'}</span>` : ''}</div>`;
@@ -949,6 +955,12 @@
       div.innerHTML = c.kind === 'voice'
         ? `<div class="big">${icon('vol')}</div><h2>${esc(c.name)}</h2><p>Ses kanalının yazı tarafı. Burada yazılanlar kalır — sesten çıksan da.</p>`
         : `<div class="big">#</div><h2>#${esc(c.name)} kanalına hoş geldin</h2><p>Kanalın başlangıcı burası.</p>`;
+      if (c.priv) {
+        const s = S.servers.get(c.sid), n = c.allow.length;
+        div.insertAdjacentHTML('beforeend', `<p class="priv-note">${icon('lock')}<span>Gizli kanal. ` +
+          (s && s.role === 'owner' ? (n ? `Sen ve seçtiğin ${n} kişi görüyor.` : 'Şimdilik yalnızca sen görüyorsun.')
+                                   : `Yalnızca den sahibi ve seçtiği ${n} kişi görüyor.`) + '</span></p>');
+      }
     }
     return div;
   }
@@ -1732,14 +1744,15 @@
     const s = S.servers.get(S.sid);
     const mq = s && mentionQuery();
     if (!mq) { closeMention(); return; }
-    const people = s.members.map(x => S.users.get(x.id)).filter(u => u && u.id !== S.me.id)
+    const c = S.chans.get(S.cid);
+    const people = s.members.filter(x => !c || canSee(c, s, x.id)).map(x => S.users.get(x.id)).filter(u => u && u.id !== S.me.id)
       .filter(u => u.username.startsWith(mq.q) || u.name.toLocaleLowerCase('tr').split(/\s+/).some(w => w.startsWith(mq.q)))
       .slice(0, 7).map(u => ({ key: u.username, u }));
     if ('herkes'.startsWith(mq.q)) people.push({ key: 'herkes', all: true });
     if (!people.length) { closeMention(); return; }
     M.items = people; M.start = mq.start; M.i = Math.min(M.i, people.length - 1);
     mpop.innerHTML = people.map((p, i) => `<button type="button" role="option" class="mp-row${i === M.i ? ' on' : ''}" data-i="${i}" aria-selected="${i === M.i}">` +
-      (p.all ? `<span class="av sm" style="--av-bg:var(--fill-2);--av-fg:var(--text)">@</span><span class="nm">herkes</span><span class="un">dendeki herkes</span>`
+      (p.all ? `<span class="av sm" style="--av-bg:var(--fill-2);--av-fg:var(--text)">@</span><span class="nm">herkes</span><span class="un">${c && c.priv ? 'kanaldaki herkes' : 'dendeki herkes'}</span>`
              : `${avHtml(p.u.id, 'sm')}<span class="nm">${esc(p.u.name)}</span><span class="un">@${esc(p.u.username)}</span>`) + '</button>').join('');
     mpop.hidden = false;
   }
@@ -1958,6 +1971,54 @@
     });
   }
 
+  // ---------- private channels: the den's owner picks who sees one ----------
+  function accessHtml(s, c) {
+    const on = !!(c && c.priv), allow = new Set(c ? c.allow : []);
+    const people = s.members.filter(x => x.role !== 'owner').sort((a, b) => nameOf(a.id).localeCompare(nameOf(b.id), 'tr'));
+    const row = x => {
+      const u = S.users.get(x.id) || {};
+      return `<button type="button" class="ac-row" data-uid="${x.id}" aria-pressed="${allow.has(x.id)}" style="--who:${tintOf(x.id).fg};--who-l:${tintOf(x.id).bg}">` +
+        `${avHtml(x.id, 'sm')}<span class="nm">${esc(u.name || '')}</span><span class="un">@${esc(u.username || '')}</span>` +
+        (x.role === 'admin' ? '<span class="role">YÖNETİCİ</span>' : '') + `<span class="ck">${icon('check')}</span></button>`;
+    };
+    return `<div class="access">
+      <button type="button" class="pop-toggle" data-priv aria-pressed="${on}"><span class="ac-t">${icon('lock')}<span><b>Gizli kanal</b>
+        <small>Yalnızca sen ve seçtiğin üyeler görür. Seçmediğin yöneticiler de göremez.</small></span></span><span class="sw"><i></i></span></button>
+      <div class="ac-pick"${on ? '' : ' hidden'}>
+        ${people.length > 6 ? '<div class="in"><input data-find placeholder="Üye ara" autocomplete="off" spellcheck="false"></div>' : ''}
+        <div class="ac-list">${people.length ? people.map(row).join('') : '<div class="note">Dende senden başka kimse yok. Birini davet edince buradan ekleyebilirsin.</div>'}</div>
+        <div class="note" data-count></div>
+      </div></div>`;
+  }
+  /** wires the picker in modal `m`; the returned function reads {private, users} */
+  function wireAccess(m) {
+    const root = m.querySelector('.access');
+    const tog = root.querySelector('[data-priv]'), pick = root.querySelector('.ac-pick');
+    const chosen = () => [...root.querySelectorAll('.ac-row[aria-pressed="true"]')].map(b => +b.dataset.uid);
+    const count = () => {
+      const n = chosen().length;
+      root.querySelector('[data-count]').textContent = n ? `Sen ve seçtiğin ${n} kişi görecek.` : 'Şimdilik yalnızca sen göreceksin.';
+    };
+    tog.addEventListener('click', () => {
+      const on = tog.getAttribute('aria-pressed') !== 'true';
+      tog.setAttribute('aria-pressed', String(on));
+      pick.hidden = !on;
+    });
+    root.querySelector('.ac-list').addEventListener('click', e => {
+      const b = e.target.closest('[data-uid]');
+      if (!b) return;
+      b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'));
+      count();
+    });
+    const find = root.querySelector('[data-find]');
+    if (find) find.addEventListener('input', () => {
+      const q = find.value.trim().toLocaleLowerCase('tr');
+      root.querySelectorAll('.ac-row').forEach(r => { r.hidden = !!q && !r.textContent.toLocaleLowerCase('tr').includes(q); });
+    });
+    count();
+    return () => ({ private: tog.getAttribute('aria-pressed') === 'true', users: chosen() });
+  }
+
   function openCreateChannel(kind) {
     const s = S.servers.get(S.sid);
     if (!isMgr(s)) return;
@@ -1968,6 +2029,7 @@
         <button type="button" data-k="voice"><span class="ico">${icon('vol')}</span><span><b>Ses</b><small>Sesli sohbet, ekran paylaşımı ve yanında yazışma</small></span></button>
       </div>
       <div class="field"><label>Kanal adı</label><div class="in"><span class="pre" data-pre>#</span><input id="ncName" maxlength="48" autocomplete="off" placeholder="yeni-kanal" autofocus></div></div>
+      ${s.role === 'owner' ? accessHtml(s, null) : ''}
       <div class="err" id="ncErr"></div>
       <div class="acts"><button class="btn" data-close>Vazgeç</button><button class="btn primary" id="ncOk">Kanal oluştur</button></div>`);
     const sync = () => {
@@ -1976,13 +2038,14 @@
       m.querySelector('#ncName').placeholder = k === 'text' ? 'yeni-kanal' : 'Oyun gecesi';
     };
     sync();
+    const access = s.role === 'owner' ? wireAccess(m) : null;
     m.querySelector('.kind-pick').addEventListener('click', e => { const b = e.target.closest('[data-k]'); if (b) { k = b.dataset.k; sync(); } });
     const submit = async () => {
       const name = m.querySelector('#ncName').value.trim();
       if (!name) { m.querySelector('#ncErr').textContent = ERR.bad_name; return; }
       m.querySelector('#ncOk').disabled = true;
       try {
-        const r = await api('channel_create', { sid: s.id, name, kind: k });
+        const r = await api('channel_create', Object.assign({ sid: s.id, name, kind: k }, access ? access() : {}));
         await reboot();
         closeModal();
         go(s.id, r.id);
@@ -1995,15 +2058,18 @@
   function openChannelSettings(cid) {
     const c = S.chans.get(cid), s = c && S.servers.get(c.sid);
     if (!c || !isMgr(s)) return;
-    const m = openModal(`<h3>Kanal ayarları</h3><div class="sub">${c.kind === 'text' ? '#' : ''}${esc(c.name)} · ${c.kind === 'text' ? 'metin' : 'ses'} kanalı</div>
+    const owner = s.role === 'owner';
+    const m = openModal(`<h3>Kanal ayarları</h3><div class="sub">${c.kind === 'text' ? '#' : ''}${esc(c.name)} · ${c.priv ? 'gizli ' : ''}${c.kind === 'text' ? 'metin' : 'ses'} kanalı</div>
       <div class="field"><label>Kanal adı</label><div class="in"><input id="ceName" maxlength="48" value="${esc(c.name)}" autofocus></div></div>
+      ${owner ? accessHtml(s, c) : c.priv ? `<div class="note">${c.allow.length} kişiye açık gizli kanal. Kimin göreceğini den sahibi belirler.</div>` : ''}
       <div class="err" id="ceErr"></div>
       <div class="acts" style="justify-content:space-between"><button class="btn danger small" id="ceDel">Kanalı sil</button>
         <span style="display:flex;gap:10px"><button class="btn" data-close>Vazgeç</button><button class="btn primary" id="ceOk">Kaydet</button></span></div>`);
+    const access = owner ? wireAccess(m) : null;
     const save = async () => {
       const name = m.querySelector('#ceName').value.trim();
       if (!name) { m.querySelector('#ceErr').textContent = ERR.bad_name; return; }
-      try { await api('channel_update', { id: cid, name }); await reboot(); closeModal(); }
+      try { await api('channel_update', Object.assign({ id: cid, name }, access ? access() : {})); await reboot(); closeModal(); }
       catch (ex) { m.querySelector('#ceErr').textContent = errText(ex); }
     };
     m.querySelector('#ceOk').addEventListener('click', save);

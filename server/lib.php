@@ -190,12 +190,50 @@ function require_manager(int $sid, array $u): string {
     if ($r !== 'owner' && $r !== 'admin') fail('forbidden', 403);
     return $r;
 }
-/** the channel row, after checking the caller belongs to its server */
+/**
+ * SQL: member row `mb` may see channel `c`. A private channel is seen by the
+ * den's owner and the people the owner picked; everything else by every member.
+ */
+const SEES = "(c.private = 0 OR mb.role = 'owner'
+    OR EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.user_id = mb.user_id))";
+
+/** the channel row, after checking the caller belongs to its server and may see it */
 function channel_for(int $cid, array $u): array {
     $c = q1('SELECT * FROM channels WHERE id = ?', [$cid]);
     if (!$c) fail('no_channel', 404);
     $c['role'] = require_member((int) $c['server_id'], $u);
+    // a channel you may not see answers exactly like one that does not exist
+    if ($c['private'] && $c['role'] !== 'owner'
+        && !qv('SELECT 1 FROM channel_members WHERE channel_id = ? AND user_id = ?', [$cid, $u['id']])) fail('no_channel', 404);
     return $c;
+}
+/** someone leaving a den does not come back to its private channels on a new invite */
+function drop_channel_passes(int $sid, int $uid): void {
+    q('DELETE cm FROM channel_members cm JOIN channels c ON c.id = cm.channel_id WHERE c.server_id = ? AND cm.user_id = ?', [$sid, $uid]);
+}
+/** private channels in my dens that I may not see */
+function hidden_channels(int $uid): array {
+    return array_map('intval', q('SELECT c.id FROM channels c JOIN members mb ON mb.server_id = c.server_id AND mb.user_id = ?
+                                  WHERE NOT ' . SEES, [$uid])->fetchAll(PDO::FETCH_COLUMN));
+}
+/**
+ * Make a channel public, or private to `$users` (plus the owner, always).
+ * Whoever loses it also loses their seat in it, if it is a voice channel.
+ */
+function set_channel_access(int $cid, int $sid, bool $private, mixed $users): void {
+    $ids = $private && is_array($users) ? array_values(array_unique(array_map('intval', $users))) : [];
+    if ($ids) {
+        // only people in this den; the owner sees every channel anyway
+        $ids = array_map('intval', q("SELECT user_id FROM members WHERE server_id = ? AND role <> 'owner'
+                                      AND user_id IN (" . marks($ids) . ')', array_merge([$sid], $ids))->fetchAll(PDO::FETCH_COLUMN));
+    }
+    q('UPDATE channels SET private = ? WHERE id = ?', [$private ? 1 : 0, $cid]);
+    q('DELETE FROM channel_members WHERE channel_id = ?', [$cid]);
+    foreach ($ids as $id) q('INSERT INTO channel_members (channel_id, user_id) VALUES (?, ?)', [$cid, $id]);
+    if ($private) {
+        q('DELETE vs FROM voice_states vs JOIN channels c ON c.id = vs.channel_id JOIN members mb ON mb.server_id = c.server_id AND mb.user_id = vs.user_id
+           WHERE vs.channel_id = ? AND NOT ' . SEES, [$cid]);
+    }
 }
 function my_server_ids(int $uid): array {
     return array_map('intval', q('SELECT server_id FROM members WHERE user_id = ?', [$uid])->fetchAll(PDO::FETCH_COLUMN));
@@ -251,11 +289,13 @@ function authors_of(array $rows): array {
     return array_map('pub_user', q('SELECT * FROM users WHERE id IN (' . marks($ids) . ')', $ids)->fetchAll());
 }
 
-function voice_states_for(array $sids): array {
+/** seats in these dens, leaving out channels in `$hidden` (who sits in a hidden channel is hidden too) */
+function voice_states_for(array $sids, array $hidden = []): array {
     if (!$sids) return [];
     $rows = q('SELECT user_id, seq, channel_id, server_id, peer_id, muted, deafened, sharing FROM voice_states
-               WHERE server_id IN (' . marks($sids) . ') AND updated_at > NOW() - INTERVAL ' . VOICE_STALE . ' SECOND
-               ORDER BY seq', $sids)->fetchAll();
+               WHERE server_id IN (' . marks($sids) . ') AND updated_at > NOW() - INTERVAL ' . VOICE_STALE . ' SECOND' .
+               ($hidden ? ' AND channel_id NOT IN (' . marks($hidden) . ')' : '') . '
+               ORDER BY seq', array_merge($sids, $hidden))->fetchAll();
     return array_map(fn($v) => [
         'uid' => (int) $v['user_id'], 'seq' => (int) $v['seq'], 'ch' => (int) $v['channel_id'],
         'sid' => (int) $v['server_id'], 'peer' => $v['peer_id'],

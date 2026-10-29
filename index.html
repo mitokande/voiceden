@@ -30,7 +30,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=12">
+<link rel="stylesheet" href="app.css?v=13">
 <script>
   // old quick-room invites (?r=room) still open the account-free room
   if (/[?&]r=/.test(location.search)) location.replace('classic.html' + location.search);
@@ -57,6 +57,8 @@
     <symbol id="i-clip" viewBox="0 0 24 24"><path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></symbol>
     <symbol id="i-chat" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
     <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></symbol>
   </defs>
 </svg>
@@ -138,6 +140,7 @@
       <button class="mh-btn mh-menu" id="menuBtn" aria-label="Kanallar"><svg class="i"><use href="#i-menu"/></svg></button>
       <span class="mh-ico" id="mhIco"></span>
       <span class="mh-name" id="mhName"></span>
+      <span class="mh-lock" id="mhLock" title="Gizli kanal" hidden><svg class="i"><use href="#i-lock"/></svg></span>
       <span class="mh-meta" id="mhMeta" hidden>
         <span class="onair"><span class="dot"></span><span>YAYINDA</span></span>
         <span id="vCount" class="hide-sm"></span><span class="vr hide-sm"></span><span id="vTimer">00:00:00</span>
@@ -151,6 +154,8 @@
 
     <div class="mbody">
       <div class="welcome" id="welcome" hidden></div>
+      <div class="welcome" id="bare" hidden><div class="hero"><h1>Burada sana açık bir kanal yok.</h1>
+        <p>Bu dendeki kanallar gizli. Den sahibi seni bir kanala eklediğinde burada görünür.</p></div></div>
 
       <div class="stagewrap" id="stagewrap">
         <div id="stage" hidden>
@@ -249,6 +254,6 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
 <script src="js/voice.js?v=3"></script>
-<script src="js/app.js?v=11"></script>
+<script src="js/app.js?v=12"></script>
 </body>
 </html>

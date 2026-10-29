@@ -155,17 +155,20 @@ function respond_then(array $data, callable $after): never {
  * Who a message names: @username of a member, or @herkes/@everyone/@here for
  * everyone in the den. Returns user ids (never the author).
  */
-function mentioned_ids(string $body, int $sid, int $authorId): array {
+/** who a message in channel `$cid` @mentions: only people who can see that channel */
+function mentioned_ids(string $body, int $cid, int $authorId): array {
     if (!str_contains($body, '@')) return [];
     // code is not a mention
     $plain = preg_replace(['/```[\s\S]*?```/', '/`[^`\n]+`/'], '', $body) ?? $body;
     if (!preg_match_all('/(?<![\p{L}\p{N}_.@])@([a-z0-9_.]{2,24})/iu', $plain, $m)) return [];
     $names = array_unique(array_map(fn($n) => rtrim(strtolower($n), '.'), $m[1]));
     if (array_intersect($names, ['herkes', 'everyone', 'here', 'burada'])) {
-        $ids = q('SELECT user_id FROM members WHERE server_id = ? AND user_id <> ?', [$sid, $authorId])->fetchAll(PDO::FETCH_COLUMN);
+        $ids = q('SELECT mb.user_id FROM channels c JOIN members mb ON mb.server_id = c.server_id
+                  WHERE c.id = ? AND mb.user_id <> ? AND ' . SEES, [$cid, $authorId])->fetchAll(PDO::FETCH_COLUMN);
     } else {
-        $ids = q('SELECT u.id FROM users u JOIN members mb ON mb.user_id = u.id AND mb.server_id = ?
-                  WHERE u.username IN (' . marks($names) . ') AND u.id <> ?', array_merge([$sid], $names, [$authorId]))->fetchAll(PDO::FETCH_COLUMN);
+        $ids = q('SELECT u.id FROM channels c JOIN members mb ON mb.server_id = c.server_id JOIN users u ON u.id = mb.user_id
+                  WHERE c.id = ? AND u.username IN (' . marks($names) . ') AND u.id <> ? AND ' . SEES,
+                 array_merge([$cid], $names, [$authorId]))->fetchAll(PDO::FETCH_COLUMN);
     }
     return array_map('intval', $ids);
 }
@@ -189,8 +192,9 @@ function notif_text(string $body): string {
 }
 
 /**
- * Push a new message to everyone who should hear about it: den members (not
- * the author) whose level allows it, not muted, not looking at the channel.
+ * Push a new message to everyone who should hear about it: den members who can
+ * see the channel (not the author) whose level allows it, not muted, not
+ * looking at the channel.
  */
 function notify_message(int $mid): void {
     $m = q1('SELECT m.*, c.name AS ch_name, c.kind, s.name AS den, s.icon, u.display_name, u.avatar
@@ -199,9 +203,10 @@ function notify_message(int $mid): void {
     if (!$m || $m['deleted']) return;
     $mentioned = array_map('intval', q('SELECT user_id FROM mentions WHERE message_id = ?', [$mid])->fetchAll(PDO::FETCH_COLUMN));
     $rows = q("SELECT mb.user_id, mb.notify, u.push_preview FROM members mb JOIN users u ON u.id = mb.user_id
-               WHERE mb.server_id = ? AND mb.user_id <> ? AND mb.notify <> 'none'
+               JOIN channels c ON c.id = ?
+               WHERE mb.server_id = ? AND mb.user_id <> ? AND mb.notify <> 'none' AND " . SEES . "
                  AND NOT (u.active_ch <=> ? AND u.active_at > NOW() - INTERVAL " . PUSH_ACTIVE_SECS . " SECOND)",
-              [$m['server_id'], $m['user_id'], $m['channel_id']])->fetchAll();
+              [$m['channel_id'], $m['server_id'], $m['user_id'], $m['channel_id']])->fetchAll();
     $targets = [];
     foreach ($rows as $r) {
         $uid = (int) $r['user_id'];

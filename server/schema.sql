@@ -195,3 +195,14 @@ ALTER TABLE members ADD COLUMN IF NOT EXISTS notify ENUM('all','mentions','none'
 ALTER TABLE users   ADD COLUMN IF NOT EXISTS push_preview TINYINT(1) NOT NULL DEFAULT 1;
 ALTER TABLE users   ADD COLUMN IF NOT EXISTS active_ch INT UNSIGNED NULL;
 ALTER TABLE users   ADD COLUMN IF NOT EXISTS active_at DATETIME NULL;
+
+-- private channels: seen only by the den's owner and the people the owner picked
+ALTER TABLE channels ADD COLUMN IF NOT EXISTS private TINYINT(1) NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS channel_members (
+  channel_id  INT UNSIGNED NOT NULL,
+  user_id     INT UNSIGNED NOT NULL,
+  PRIMARY KEY (channel_id, user_id),
+  KEY k_user (user_id),
+  CONSTRAINT fk_cm_ch   FOREIGN KEY (channel_id) REFERENCES channels(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cm_user FOREIGN KEY (user_id)    REFERENCES users(id)    ON DELETE CASCADE
+) ENGINE=InnoDB;

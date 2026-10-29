@@ -127,18 +127,18 @@ button{background:none;border:0;cursor:pointer}
 /* the narrow side columns: thinner and fainter. (Showing it only while the
    column is hovered does not work: Chromium never repaints a scrollbar when
    its scroller's :hover changes.) */
-.side-scroll::-webkit-scrollbar,.mlist::-webkit-scrollbar,.gp-body::-webkit-scrollbar,.mem-admin::-webkit-scrollbar{width:8px}
-.side-scroll::-webkit-scrollbar-thumb,.mlist::-webkit-scrollbar-thumb,.gp-body::-webkit-scrollbar-thumb,.mem-admin::-webkit-scrollbar-thumb{
+.side-scroll::-webkit-scrollbar,.mlist::-webkit-scrollbar,.gp-body::-webkit-scrollbar,.mem-admin::-webkit-scrollbar,.ac-list::-webkit-scrollbar{width:8px}
+.side-scroll::-webkit-scrollbar-thumb,.mlist::-webkit-scrollbar-thumb,.gp-body::-webkit-scrollbar-thumb,.mem-admin::-webkit-scrollbar-thumb,.ac-list::-webkit-scrollbar-thumb{
   border-width:2px;background-color:var(--thumb-faint);
 }
 .side-scroll::-webkit-scrollbar-thumb:hover,.mlist::-webkit-scrollbar-thumb:hover,
-.gp-body::-webkit-scrollbar-thumb:hover,.mem-admin::-webkit-scrollbar-thumb:hover{background-color:var(--thumb-hover)}
+.gp-body::-webkit-scrollbar-thumb:hover,.mem-admin::-webkit-scrollbar-thumb:hover,.ac-list::-webkit-scrollbar-thumb:hover{background-color:var(--thumb-hover)}
 /* code blocks scroll sideways: a hairline is enough there */
 .md-pre::-webkit-scrollbar{height:8px}
 .md-pre::-webkit-scrollbar-thumb{border-width:2px}
 @supports not selector(::-webkit-scrollbar){
   *{scrollbar-width:thin;scrollbar-color:var(--thumb) transparent}
-  .side-scroll,.mlist,.gp-body,.mem-admin{scrollbar-color:var(--thumb-faint) transparent}
+  .side-scroll,.mlist,.gp-body,.mem-admin,.ac-list{scrollbar-color:var(--thumb-faint) transparent}
 }
 svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
@@ -328,6 +328,10 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .ch:hover .edit,.ch.active .edit{opacity:1}
 .ch .edit:hover{color:var(--text);background:var(--fill)}
 .ch .cnt{font:400 10px var(--mono);color:var(--text-faint)}
+/* private channel: a small lock right after the name */
+.ch.priv .nm{flex:0 1 auto}
+.ch .lk{flex:none;display:flex;color:var(--text-faint);margin-right:auto}
+.ch .lk svg.i{width:12px;height:12px}
 .ch .ment{margin-left:2px}
 .vusers{display:flex;flex-direction:column;gap:1px;padding:2px 0 6px 26px}
 .vu-row{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px;border-radius:7px;font-size:13px;color:var(--text-dim);min-width:0}
@@ -396,6 +400,8 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .mh-ico{color:var(--text-faint);font:400 20px var(--mono);display:flex}
 .mh-ico svg.i{width:20px;height:20px}
 .mh-name{font-weight:600;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.mh-lock{display:flex;color:var(--text-faint);flex:none}
+.mh-lock svg.i{width:14px;height:14px}
 .mh-meta{display:flex;align-items:center;gap:10px;font:400 12px var(--mono);color:var(--text-dim);flex:none}
 .mh-meta .vr{width:1px;height:14px;background:var(--line-hard)}
 .onair{
@@ -447,6 +453,8 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .msgs-top .big svg.i{width:26px;height:26px}
 .msgs-top h2{font-size:24px;font-weight:600;letter-spacing:-.01em}
 .msgs-top p{color:var(--text-dim);font-size:14px}
+.msgs-top .priv-note{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-faint)}
+.msgs-top .priv-note svg.i{width:13px;height:13px;flex:none}
 .msgs-more{display:flex;justify-content:center;padding:14px}
 .day{
   display:flex;align-items:center;gap:12px;margin:14px 20px 4px;
@@ -902,6 +910,29 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .tint-pick button{width:34px;height:34px;border-radius:50%;background:var(--av-bg);border:2px solid transparent;color:var(--av-fg);font-size:12px;font-weight:600}
 .tint-pick button[aria-pressed="true"]{border-color:var(--text);box-shadow:0 0 0 2px var(--panel) inset}
 .mem-admin{display:flex;flex-direction:column;gap:2px;max-height:300px;overflow-y:auto;margin:0 -6px}
+/* who sees a private channel: the owner's picker */
+.access{display:flex;flex-direction:column;gap:10px}
+.access .pop-toggle{padding:12px 14px;border-radius:var(--r-ctl);background:var(--sunken);border:1px solid var(--line-hard)}
+.access .pop-toggle[aria-pressed="true"]{border-color:var(--teal-line)}
+.ac-t{display:flex;align-items:flex-start;gap:12px;min-width:0}
+.ac-t > svg.i{width:18px;height:18px;flex:none;margin-top:1px;color:var(--text-dim)}
+.ac-t b{display:block;font-size:14px;font-weight:600}
+.ac-t small{display:block;color:var(--text-dim);font-size:12px;line-height:1.45;margin-top:2px}
+.ac-pick{display:flex;flex-direction:column;gap:8px}
+.ac-list{display:flex;flex-direction:column;gap:2px;max-height:248px;overflow-y:auto;margin:0 -6px;padding:0 6px}
+.ac-row{display:flex;align-items:center;gap:10px;height:40px;padding:0 8px;border-radius:var(--r-sm);text-align:left;font-size:13.5px;width:100%}
+.ac-row:hover{background:var(--hover)}
+.ac-row .nm{color:var(--who);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+:root[data-theme="light"] .ac-row .nm{color:var(--who-l,var(--text))}
+.ac-row .un{font:400 11.5px var(--mono);color:var(--text-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+.ac-row .role{font:500 9px var(--mono);letter-spacing:.06em;color:var(--text-faint);flex:none}
+.ac-row .ck{
+  width:20px;height:20px;flex:none;border-radius:6px;border:1.5px solid var(--line-hard);
+  display:flex;align-items:center;justify-content:center;color:transparent;transition:background .12s,border-color .12s;
+}
+.ac-row .ck svg.i{width:14px;height:14px;stroke-width:2.6}
+.ac-row[aria-pressed="true"] .ck{background:var(--teal);border-color:var(--teal);color:var(--teal-ink)}
+.ac-row:focus-visible{outline:2px solid var(--teal-line);outline-offset:-2px}
 .mem-admin .mrow{height:46px}
 .mem-admin .mrow .btn{height:28px;padding:0 10px;font-size:12px}
 .settings-sec{display:flex;flex-direction:column;gap:12px}

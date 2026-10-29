@@ -37,7 +37,8 @@ Cache-busting: bump the `?v=` on the three includes in `index.html` after editin
 
 `users` · `sessions` (sha256 of a random cookie token, 90-day sliding) ·
 `servers` (has `invite_code` and a `rev`) · `members` (role owner/admin/member) ·
-`channels` (kind text/voice, denormalised `last_msg_id`) · `messages` ·
+`channels` (kind text/voice, `private`, denormalised `last_msg_id`) ·
+`channel_members` (who may see a private channel) · `messages` ·
 `attachments` · `channel_reads` (unread state) · `voice_states` (one row per
 account = one live voice connection) · `typing` · `throttle`.
 
@@ -90,6 +91,42 @@ server**: `voice_join {ch, peer}` claims a seat and returns everyone there.
   only if deafen took it.
 - Screen share: separate PeerJS call tagged `metadata.kind: 'screen'`; sharing
   is also reported to the server so the sidebar shows a CANLI badge.
+
+## Private channels
+
+A den's **owner** can make any channel private and pick who sees it
+(`channels.private` + `channel_members`). The owner always sees every channel;
+admins see a private channel only if picked, like everyone else. Admins can
+still create public channels and rename/delete channels they can see, but only
+the owner may set `private`/`users` (`channel_create` and `channel_update`
+take `{private, users: [uid…]}`; ids that are not members, or the owner, are
+dropped; making a channel public clears its list).
+
+Enforcement is server-side, in one place per path:
+
+- `SEES` (lib.php) is the SQL condition "member row `mb` may see channel `c`";
+  `hidden_channels($uid)` lists the private channels in my dens I may not see.
+- `channel_for()` answers a hidden channel exactly like a missing one
+  (`404 no_channel`), so `messages`, `send`, `read`, `voice_join`, rename,
+  delete, and edit/delete of a message in it are all closed.
+- `boot` leaves hidden channels out and sends `priv` + `allow` for the private
+  ones I can see; `poll` leaves out their messages, typing and voice seats;
+  `voice_states_for()` takes the hidden list so seats (and peer ids) in a
+  hidden voice channel never reach outsiders.
+- `file` checks the attachment's channel with `SEES`.
+- `mentioned_ids()` and `notify_message()` only reach people who can see the
+  channel, so `@herkes` in a private channel means "everyone in it" and no
+  push leaks a private message to someone outside it.
+- Taking someone out (or making a channel private) drops their seat in it;
+  their client hears `voice_status: gone` and the next boot moves them off.
+  Leaving or being kicked from a den deletes that person's passes, so a new
+  invite does not bring them back into private channels.
+
+Client: a lock after the name in the sidebar and header, a "Gizli kanal" line
+at the top of the channel, the member list and @-suggestions narrowed to the
+people in the channel, and a picker (switch + member checklist) in the
+create/settings modals for the owner only. A den where every channel is hidden
+from me shows the `#bare` empty state.
 
 ## Themes (light / dark)
 
@@ -268,6 +305,8 @@ calls/min). With an empty key the GIF button opens and says search is not set up
   else is `application/octet-stream` + `attachment`. File responses carry
   `nosniff` and a `sandbox` CSP. Range requests are supported (Safari video).
 - All client templates go through `esc()`, which escapes quotes too.
+- Private channels are enforced on the server only (see "Private channels");
+  the client's `canSee()` just narrows lists for display.
 
 ## Testing
 
@@ -288,7 +327,7 @@ Test sign-ups count against the register throttle (20 per IP per hour): if a run
 2. ~~@mentions + notifications~~ — done (in-app, page notifications, Web Push).
 3. **Replies and reactions** on messages.
 4. ~~Avatars and den icons~~ — done. A short status line is still open.
-5. **Channel order / categories** (drag to reorder), finer roles (who may create channels, kick, delete messages).
+5. **Channel order / categories** (drag to reorder), finer roles (who may create channels, kick, delete messages). ~~Private channels~~ — done (owner picks who sees them).
 6. **Per-person volume** in voice, and a **TURN server** of our own (coturn on 443) for strict NATs.
 7. **Search** in a den's messages (MariaDB FULLTEXT).
 8. Storage quota per den and a cleanup job for orphaned files.

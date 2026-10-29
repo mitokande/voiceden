@@ -152,16 +152,23 @@ function api_boot(): void {
         ];
     }
     $users = [];
+    $hidden = hidden_channels($uid);
     if ($sids) {
-        foreach (q('SELECT c.id, c.server_id, c.name, c.kind, c.position, c.last_msg_id, COALESCE(r.last_read_id, 0) AS read_id,
+        $allow = [];
+        foreach (q('SELECT cm.channel_id, cm.user_id FROM channel_members cm JOIN channels c ON c.id = cm.channel_id
+                    WHERE c.private = 1 AND c.server_id IN (' . marks($sids) . ')', $sids) as $x) {
+            $allow[(int) $x['channel_id']][] = (int) $x['user_id'];
+        }
+        foreach (q('SELECT c.id, c.server_id, c.name, c.kind, c.private, c.position, c.last_msg_id, COALESCE(r.last_read_id, 0) AS read_id,
                       (SELECT COUNT(*) FROM mentions mn WHERE mn.user_id = ? AND mn.channel_id = c.id
                          AND mn.message_id > COALESCE(r.last_read_id, 0)) AS ment
                     FROM channels c LEFT JOIN channel_reads r ON r.channel_id = c.id AND r.user_id = ?
                     WHERE c.server_id IN (' . marks($sids) . ') ORDER BY c.position, c.id', array_merge([$uid, $uid], $sids)) as $c) {
+            if (in_array((int) $c['id'], $hidden, true)) continue;
             $byId[(int) $c['server_id']]['channels'][] = [
                 'id' => (int) $c['id'], 'name' => $c['name'], 'kind' => $c['kind'],
                 'last' => (int) $c['last_msg_id'], 'read' => (int) $c['read_id'], 'ment' => (int) $c['ment'],
-            ];
+            ] + ($c['private'] ? ['priv' => true, 'allow' => $allow[(int) $c['id']] ?? []] : []);
         }
         foreach (q('SELECT m.server_id, m.role, u.* FROM members m JOIN users u ON u.id = m.user_id
                     WHERE m.server_id IN (' . marks($sids) . ') ORDER BY m.joined_at', $sids) as $m) {
@@ -176,7 +183,7 @@ function api_boot(): void {
         'prefs'   => ['preview' => (bool) $u['push_preview']],
         'servers' => array_values($byId),
         'users'   => array_values($users),
-        'voice'   => voice_states_for($sids),
+        'voice'   => voice_states_for($sids, $hidden),
         'online'  => online_ids($sids),
         'cursor'  => (int) qv('SELECT COALESCE(MAX(rev), 0) FROM messages'),
     ]);
@@ -209,9 +216,10 @@ function api_poll(): void {
         q('DELETE FROM typing WHERE until_at < NOW() - INTERVAL 1 MINUTE');
     }
 
+    $hidden = hidden_channels($uid);
     $ch = int_in($b, 'ch');
     $chServer = $ch ? (int) qv('SELECT server_id FROM channels WHERE id = ?', [$ch]) : 0;
-    if ($chServer && !in_array($chServer, $sids, true)) $ch = 0;
+    if (($chServer && !in_array($chServer, $sids, true)) || in_array($ch, $hidden, true)) $ch = 0;
     if (!empty($b['vis'])) q('UPDATE users SET active_ch = ?, active_at = NOW() WHERE id = ?', [$ch ?: null, $uid]);
     elseif (array_key_exists('vis', $b)) q('UPDATE users SET active_ch = NULL WHERE id = ? AND active_ch IS NOT NULL', [$uid]);
     if ($ch && !empty($b['typing'])) {
@@ -226,8 +234,9 @@ function api_poll(): void {
     if ($sids) {
         // a small overlap catches a rev that was taken before, but committed after,
         // a higher one; the client skips anything it already has at that rev
-        $rows = q('SELECT ' . MSG_COLS . ' FROM messages m WHERE m.rev > ? AND m.server_id IN (' . marks($sids) . ')
-                   ORDER BY m.rev LIMIT 301', array_merge([max(0, $since - 20)], $sids))->fetchAll();
+        $rows = q('SELECT ' . MSG_COLS . ' FROM messages m WHERE m.rev > ? AND m.server_id IN (' . marks($sids) . ')' .
+                  ($hidden ? ' AND m.channel_id NOT IN (' . marks($hidden) . ')' : '') . '
+                   ORDER BY m.rev LIMIT 301', array_merge([max(0, $since - 20)], $sids, $hidden))->fetchAll();
         if (count($rows) > 300) { $more = true; array_pop($rows); }
         foreach ($rows as $r) $cursor = max($cursor, (int) $r['rev']);
         $msgs = pack_messages($rows);
@@ -242,7 +251,7 @@ function api_poll(): void {
         'cursor' => $cursor,
         'more'   => $more,
         'msgs'   => $msgs,
-        'voice'  => voice_states_for($sids),
+        'voice'  => voice_states_for($sids, $hidden),
         'online' => online_ids($sids),
         'typing' => $ch ? array_map('intval', q('SELECT user_id FROM typing WHERE channel_id = ? AND user_id <> ? AND until_at > NOW(3)',
                                                 [$ch, $uid])->fetchAll(PDO::FETCH_COLUMN)) : [],
@@ -306,6 +315,7 @@ function api_server_leave(): void {
     if (require_member($sid, $u) === 'owner') fail('owner_cannot_leave');
     q('DELETE FROM members WHERE server_id = ? AND user_id = ?', [$sid, $u['id']]);
     q('DELETE FROM voice_states WHERE server_id = ? AND user_id = ?', [$sid, $u['id']]);
+    drop_channel_passes($sid, (int) $u['id']);
     bump_server($sid);
     out(['ok' => true]);
 }
@@ -397,14 +407,19 @@ function api_channel_create(): void {
     $u = require_user();
     $b = body();
     $sid = int_in($b, 'sid');
-    require_manager($sid, $u);
+    $role = require_manager($sid, $u);
+    $private = !empty($b['private']);
+    if ($private && $role !== 'owner') fail('forbidden', 403);    // who sees what is the owner's call
     $kind = ($b['kind'] ?? '') === 'voice' ? 'voice' : 'text';
     $name = channel_name($b['name'] ?? '', $kind);
     if ($name === '') fail('bad_name');
     if ((int) qv('SELECT COUNT(*) FROM channels WHERE server_id = ?', [$sid]) >= 50) fail('too_many');
     $pos = (int) qv('SELECT COALESCE(MAX(position), 0) + 1 FROM channels WHERE server_id = ? AND kind = ?', [$sid, $kind]);
+    db()->beginTransaction();
     q('INSERT INTO channels (server_id, name, kind, position) VALUES (?, ?, ?, ?)', [$sid, $name, $kind, $pos]);
     $id = (int) db()->lastInsertId();
+    if ($private) set_channel_access($id, $sid, true, $b['users'] ?? []);
+    db()->commit();
     bump_server($sid);
     out(['id' => $id]);
 }
@@ -416,7 +431,12 @@ function api_channel_update(): void {
     if ($c['role'] === 'member') fail('forbidden', 403);
     $name = channel_name($b['name'] ?? '', $c['kind']);
     if ($name === '') fail('bad_name');
+    $access = array_key_exists('private', $b);
+    if ($access && $c['role'] !== 'owner') fail('forbidden', 403);
+    db()->beginTransaction();
     q('UPDATE channels SET name = ? WHERE id = ?', [$name, $c['id']]);
+    if ($access) set_channel_access((int) $c['id'], (int) $c['server_id'], !empty($b['private']), $b['users'] ?? []);
+    db()->commit();
     bump_server((int) $c['server_id']);
     out(['ok' => true]);
 }
@@ -448,6 +468,7 @@ function api_member_kick(): void {
     if ($theirs === 'owner' || ($mine === 'admin' && $theirs !== 'member')) fail('forbidden', 403);
     q('DELETE FROM members WHERE server_id = ? AND user_id = ?', [$sid, $target]);
     q('DELETE FROM voice_states WHERE server_id = ? AND user_id = ?', [$sid, $target]);
+    drop_channel_passes($sid, $target);
     bump_server($sid);
     out(['ok' => true]);
 }
@@ -558,7 +579,7 @@ function api_send(): void {
         q('INSERT INTO channel_reads (user_id, channel_id, last_read_id) VALUES (?, ?, ?)
            ON DUPLICATE KEY UPDATE last_read_id = GREATEST(last_read_id, VALUES(last_read_id))', [$u['id'], $c['id'], $mid]);
         q('DELETE FROM typing WHERE channel_id = ? AND user_id = ?', [$c['id'], $u['id']]);
-        store_mentions($mid, (int) $c['id'], mentioned_ids($text, (int) $c['server_id'], (int) $u['id']));
+        store_mentions($mid, (int) $c['id'], mentioned_ids($text, (int) $c['id'], (int) $u['id']));
         db()->commit();
     } catch (Throwable $e) {
         if (db()->inTransaction()) db()->rollBack();
@@ -572,7 +593,7 @@ function api_send(): void {
 function own_message(int $id, array $u, bool $managersToo): array {
     $m = q1('SELECT * FROM messages WHERE id = ? AND deleted = 0', [$id]);
     if (!$m) fail('no_message', 404);
-    $role = require_member((int) $m['server_id'], $u);
+    $role = channel_for((int) $m['channel_id'], $u)['role'];
     $mine = (int) $m['user_id'] === (int) $u['id'];
     if (!$mine && !($managersToo && ($role === 'owner' || $role === 'admin'))) fail('forbidden', 403);
     return $m;
@@ -586,7 +607,7 @@ function api_edit(): void {
     if (mb_strlen($text) > MAX_BODY) fail('too_long');
     if ($text === '' && !qv('SELECT 1 FROM attachments WHERE message_id = ?', [$m['id']])) fail('empty');
     q('UPDATE messages SET body = ?, edited_at = NOW(3), rev = NEXT VALUE FOR msg_rev WHERE id = ?', [$text, $m['id']]);
-    store_mentions((int) $m['id'], (int) $m['channel_id'], mentioned_ids($text, (int) $m['server_id'], (int) $m['user_id']));   // no push for edits
+    store_mentions((int) $m['id'], (int) $m['channel_id'], mentioned_ids($text, (int) $m['channel_id'], (int) $m['user_id']));   // no push for edits
     out(['msg' => pack_messages([q1('SELECT ' . MSG_COLS . ' FROM messages m WHERE m.id = ?', [$m['id']])])[0]]);
 }
 
@@ -614,13 +635,14 @@ function api_read(): void {
 
 /* ======================================================== files */
 
-/** Streams an attachment to a member of its server, with byte ranges (Safari will not play video without them). */
+/** Streams an attachment to whoever can see its channel, with byte ranges (Safari will not play video without them). */
 function api_file(): void {
     $u = current_user();
     if (!$u) { http_response_code(401); exit; }
-    $a = q1('SELECT a.*, m.server_id FROM attachments a JOIN messages m ON m.id = a.message_id
-             WHERE a.id = ? AND m.deleted = 0', [(int) ($_GET['id'] ?? 0)]);
-    if (!$a || role_in((int) $a['server_id'], (int) $u['id']) === null) { http_response_code(404); exit; }
+    $a = q1('SELECT a.* FROM attachments a JOIN messages m ON m.id = a.message_id JOIN channels c ON c.id = m.channel_id
+             JOIN members mb ON mb.server_id = c.server_id AND mb.user_id = ?
+             WHERE a.id = ? AND m.deleted = 0 AND ' . SEES, [(int) $u['id'], (int) ($_GET['id'] ?? 0)]);
+    if (!$a) { http_response_code(404); exit; }
     $path = FILES_DIR . '/' . $a['path'];
     if (!is_file($path)) { http_response_code(404); exit; }
 
@@ -680,7 +702,7 @@ function api_voice_join(): void {
        ON DUPLICATE KEY UPDATE seq = VALUES(seq), channel_id = VALUES(channel_id), server_id = VALUES(server_id),
          peer_id = VALUES(peer_id), muted = VALUES(muted), deafened = VALUES(deafened), sharing = 0, updated_at = NOW()',
       [$u['id'], $c['id'], $c['server_id'], $peer, !empty($b['mu']) ? 1 : 0, !empty($b['df']) ? 1 : 0]);
-    $all = voice_states_for([(int) $c['server_id']]);
+    $all = voice_states_for([(int) $c['server_id']], hidden_channels((int) $u['id']));
     $mine = array_values(array_filter($all, fn($v) => $v['uid'] === (int) $u['id']));
     out(['seq' => $mine ? $mine[0]['seq'] : 0, 'voice' => $all]);
 }
